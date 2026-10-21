@@ -39,3 +39,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Ferramentas e artefatos locais
+.claude/
+cxx-build/
