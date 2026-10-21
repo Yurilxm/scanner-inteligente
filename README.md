@@ -185,6 +185,15 @@ Isso tira os objetos intermediarios do caminho profundo `android/app/.cxx/...` e
 
 **TODO:** transformar essa edicao em um config plugin na Fase 7.
 
+
+## Notas de ambiente (PC Windows)
+
+Durante a configuracao no PC, alguns ajustes extras foram necessarios devido ao Windows:
+
+1. **Caminho do SDK sem espacos**: O usuario do Windows possuia espaco no nome (`Yuri Yam`), o que quebrava as ferramentas do Android. O SDK foi movido para `C:\Android\Sdk`.
+2. **Limite de 260 caracteres (MAX_PATH)**: Foi necessario habilitar caminhos longos no Windows alterando o Registro (`HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem` -> `LongPathsEnabled` = 1).
+3. **Atualizacao do Ninja**: O Ninja que vem no CMake 3.22.1 foi substituido pela versao 1.13.2 para suportar os caminhos longos.
+
 ## Proximos passos
 
 - **Fase 2:** captura pela camera e importacao da galeria, com previa e cancelamento.
