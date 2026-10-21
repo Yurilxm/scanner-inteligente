@@ -13,6 +13,8 @@ import {
   ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
+import { File } from 'expo-file-system';
+import { saveDocument } from '../src/db/database';
 import { useDocument } from '../src/context/DocumentContext';
 import { extractTextFromImage } from '../src/utils/ocr';
 import { extractFields } from '../src/utils/extractor';
@@ -73,23 +75,39 @@ export default function RevisaoScreen() {
 
   if (!imageUri) return null;
 
-  const onCancel = () => {
+  const onCancel = async () => {
+    try {
+      // Apaga o arquivo fisico antes de sair
+      const file = new File(imageUri);
+      if (file.exists) file.delete();
+    } catch {
+      // Ignora erro silencioso se o arquivo ja sumiu
+    }
     reset();
     router.replace('/');
   };
 
   const onSave = () => {
+    if (!fields) return;
+
     // Sincroniza o estado local de volta para o Contexto (se o usuario editou)
-    if (fields) {
-      setFields({
-        ...fields,
-        cnpj: editCnpj || null,
-        cpf: editCpf || null,
-        date: editDate || null,
-        totalAmountCents: editValue ? Math.round(parseFloat(editValue.replace(',', '.')) * 100) : null,
-      });
+    const finalFields = {
+      ...fields,
+      cnpj: editCnpj || null,
+      cpf: editCpf || null,
+      date: editDate || null,
+      totalAmountCents: editValue ? Math.round(parseFloat(editValue.replace(',', '.')) * 100) : null,
+    };
+
+    try {
+      saveDocument(imageUri!, ocrText || '', finalFields);
+      reset();
+      Alert.alert('Sucesso', 'Documento salvo na biblioteca!', [
+        { text: 'OK', onPress: () => router.replace('/') }
+      ]);
+    } catch {
+      Alert.alert('Erro', 'Nao foi possivel salvar o documento.');
     }
-    Alert.alert('Em construcao', 'O salvamento no banco de dados sera feito na Fase 5.');
   };
 
   return (
