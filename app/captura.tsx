@@ -15,7 +15,7 @@ export default function CapturaScreen() {
       // Salva permanentemente e guarda no Contexto
       const permanentUri = await saveImageLocally(tempUri);
       setImageUri(permanentUri);
-      router.back();
+      router.replace('/revisao');
     } catch {
       Alert.alert('Erro', 'Nao foi possivel salvar a imagem.');
     } finally {
