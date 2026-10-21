@@ -10,14 +10,22 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useDocument } from '../src/context/DocumentContext';
 import { extractTextFromImage } from '../src/utils/ocr';
+import { extractFields } from '../src/utils/extractor';
 
 export default function RevisaoScreen() {
-  const { imageUri, ocrText, setOcrText, reset } = useDocument();
+  const { imageUri, ocrText, setOcrText, fields, setFields, reset } = useDocument();
   const [isLoading, setIsLoading] = useState(true);
+
+  // Estado local para edicao
+  const [editCnpj, setEditCnpj] = useState('');
+  const [editCpf, setEditCpf] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editValue, setEditValue] = useState('');
 
   useEffect(() => {
     if (!imageUri) {
@@ -27,12 +35,23 @@ export default function RevisaoScreen() {
 
     let isMounted = true;
 
-    async function runOcr() {
+    async function processDocument() {
       try {
         setIsLoading(true);
+        // 1. OCR
         const text = await extractTextFromImage(imageUri!);
+        
         if (isMounted) {
           setOcrText(text);
+          // 2. Extracao
+          const extracted = extractFields(text);
+          setFields(extracted);
+
+          // 3. Preenche estado local para edicao
+          setEditCnpj(extracted.cnpj || '');
+          setEditCpf(extracted.cpf || '');
+          setEditDate(extracted.date || '');
+          setEditValue(extracted.totalAmountCents ? (extracted.totalAmountCents / 100).toFixed(2).replace('.', ',') : '');
         }
       } catch {
         if (isMounted) {
@@ -45,12 +64,12 @@ export default function RevisaoScreen() {
       }
     }
 
-    runOcr();
+    processDocument();
 
     return () => {
       isMounted = false;
     };
-  }, [imageUri, setOcrText]);
+  }, [imageUri, setOcrText, setFields]);
 
   if (!imageUri) return null;
 
@@ -60,6 +79,16 @@ export default function RevisaoScreen() {
   };
 
   const onSave = () => {
+    // Sincroniza o estado local de volta para o Contexto (se o usuario editou)
+    if (fields) {
+      setFields({
+        ...fields,
+        cnpj: editCnpj || null,
+        cpf: editCpf || null,
+        date: editDate || null,
+        totalAmountCents: editValue ? Math.round(parseFloat(editValue.replace(',', '.')) * 100) : null,
+      });
+    }
     Alert.alert('Em construcao', 'O salvamento no banco de dados sera feito na Fase 5.');
   };
 
@@ -68,29 +97,48 @@ export default function RevisaoScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={styles.imageContainer}>
-        <Image source={{ uri: imageUri }} style={styles.image} resizeMode="contain" />
-      </View>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.imageContainer}>
+          <Image source={{ uri: imageUri }} style={styles.image} resizeMode="contain" />
+        </View>
 
-      <View style={styles.textContainer}>
-        <Text style={styles.label}>Texto reconhecido (edite se necessario):</Text>
-        
         {isLoading ? (
           <View style={styles.loadingBox}>
             <ActivityIndicator size="large" color="#0a7ea4" />
-            <Text style={styles.loadingText}>Processando OCR no aparelho...</Text>
+            <Text style={styles.loadingText}>Processando OCR e extraindo campos...</Text>
           </View>
         ) : (
-          <TextInput
-            style={styles.textInput}
-            multiline
-            value={ocrText || ''}
-            onChangeText={setOcrText}
-            placeholder="Nenhum texto reconhecido."
-            textAlignVertical="top"
-          />
+          <View style={styles.formContainer}>
+            <Text style={styles.sectionTitle}>Campos Encontrados</Text>
+            <Text style={styles.helpText}>Revise e edite os dados abaixo:</Text>
+
+            <Text style={styles.label}>Tipo do Documento</Text>
+            <Text style={styles.valueText}>{fields?.documentType || 'DESCONHECIDO'}</Text>
+
+            <Text style={styles.label}>CNPJ</Text>
+            <TextInput style={styles.input} value={editCnpj} onChangeText={setEditCnpj} keyboardType="numeric" placeholder="Nao encontrado" />
+
+            <Text style={styles.label}>CPF</Text>
+            <TextInput style={styles.input} value={editCpf} onChangeText={setEditCpf} keyboardType="numeric" placeholder="Nao encontrado" />
+
+            <Text style={styles.label}>Data (AAAA-MM-DD)</Text>
+            <TextInput style={styles.input} value={editDate} onChangeText={setEditDate} placeholder="Nao encontrada" />
+
+            <Text style={styles.label}>Valor Total (R$)</Text>
+            <TextInput style={styles.input} value={editValue} onChangeText={setEditValue} keyboardType="numeric" placeholder="0,00" />
+
+            <Text style={styles.sectionTitle}>Texto Completo (OCR)</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              multiline
+              value={ocrText || ''}
+              onChangeText={setOcrText}
+              placeholder="Nenhum texto reconhecido."
+              textAlignVertical="top"
+            />
+          </View>
         )}
-      </View>
+      </ScrollView>
 
       <View style={styles.actions}>
         <Pressable style={styles.buttonSecondary} onPress={onCancel}>
@@ -106,36 +154,38 @@ export default function RevisaoScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
+  scroll: { flex: 1 },
+  scrollContent: { paddingBottom: 24 },
   imageContainer: {
-    height: '40%',
+    height: 250,
     backgroundColor: '#000',
     justifyContent: 'center',
   },
   image: { width: '100%', height: '100%' },
-  textContainer: { flex: 1, padding: 16 },
-  label: { fontSize: 14, fontWeight: '600', marginBottom: 8, color: '#333' },
-  loadingBox: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  loadingBox: { padding: 40, alignItems: 'center', justifyContent: 'center' },
   loadingText: { marginTop: 12, color: '#555' },
-  textInput: {
-    flex: 1,
+  formContainer: { padding: 16 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginTop: 16, marginBottom: 8 },
+  helpText: { fontSize: 13, color: '#666', marginBottom: 16 },
+  label: { fontSize: 13, fontWeight: '600', color: '#555', marginTop: 12, marginBottom: 4 },
+  valueText: { fontSize: 16, color: '#333', paddingVertical: 4 },
+  input: {
     borderWidth: 1,
     borderColor: '#ddd',
     borderRadius: 8,
     padding: 12,
-    fontSize: 14,
+    fontSize: 15,
     color: '#333',
     backgroundColor: '#fafafa',
   },
+  textArea: { height: 150, marginTop: 8 },
   actions: {
     flexDirection: 'row',
     padding: 16,
     borderTopWidth: 1,
     borderColor: '#eee',
     gap: 12,
+    backgroundColor: '#fff',
   },
   button: {
     flex: 1,
