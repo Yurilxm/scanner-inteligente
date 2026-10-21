@@ -3,6 +3,7 @@ import { View, Text, FlatList, StyleSheet, Pressable, Alert, Image } from 'react
 import { useFocusEffect } from 'expo-router';
 import { getDocuments, deleteDocumentById, SavedDocument } from '../src/db/database';
 import { File } from 'expo-file-system';
+import { exportToCSV, exportToPDF } from '../src/utils/export';
 
 export default function BibliotecaScreen() {
   const [documents, setDocuments] = useState<SavedDocument[]>([]);
@@ -33,6 +34,15 @@ export default function BibliotecaScreen() {
     ]);
   };
 
+  const handleExport = async (type: 'csv' | 'pdf') => {
+    try {
+      if (type === 'csv') await exportToCSV(documents);
+      else await exportToPDF(documents);
+    } catch {
+      Alert.alert('Erro', 'Nao foi possivel exportar os documentos.');
+    }
+  };
+
   const renderItem = ({ item }: { item: SavedDocument }) => (
     <View style={styles.card}>
       <Image source={{ uri: item.imageUri }} style={styles.thumbnail} />
@@ -53,12 +63,22 @@ export default function BibliotecaScreen() {
       {documents.length === 0 ? (
         <Text style={styles.emptyText}>Nenhum documento salvo ainda.</Text>
       ) : (
-        <FlatList
+        <>
+          <View style={styles.exportBar}>
+            <Pressable style={styles.exportButton} onPress={() => handleExport('csv')}>
+              <Text style={styles.exportText}>Exportar CSV</Text>
+            </Pressable>
+            <Pressable style={styles.exportButton} onPress={() => handleExport('pdf')}>
+              <Text style={styles.exportText}>Exportar PDF</Text>
+            </Pressable>
+          </View>
+          <FlatList
           data={documents}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
-          contentContainerStyle={styles.list}
-        />
+            contentContainerStyle={styles.list}
+          />
+        </>
       )}
     </View>
   );
@@ -68,6 +88,22 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
   list: { padding: 16 },
   emptyText: { textAlign: 'center', marginTop: 40, color: '#888', fontSize: 16 },
+  exportBar: {
+    flexDirection: 'row',
+    padding: 16,
+    gap: 12,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderColor: '#eee',
+  },
+  exportButton: {
+    flex: 1,
+    backgroundColor: '#0a7ea4',
+    paddingVertical: 10,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  exportText: { color: '#fff', fontWeight: '600' },
   card: {
     flexDirection: 'row',
     backgroundColor: '#fff',
