@@ -38,7 +38,8 @@ export default function CapturaScreen() {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (!message.toLowerCase().includes('cancel')) {
-        Alert.alert('Erro no scanner', 'Nao foi possivel escanear.');
+        // Vamos mostrar o erro real para diagnosticar no celular
+        Alert.alert('Erro no scanner', `Detalhe do erro: ${message}`);
       }
       setIsProcessing(false);
     }

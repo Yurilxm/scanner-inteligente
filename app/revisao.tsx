@@ -55,9 +55,10 @@ export default function RevisaoScreen() {
           setEditDate(extracted.date || '');
           setEditValue(extracted.totalAmountCents ? (extracted.totalAmountCents / 100).toFixed(2).replace('.', ',') : '');
         }
-      } catch {
+      } catch (error) {
         if (isMounted) {
-          Alert.alert('Erro no OCR', 'Nao foi possivel ler o texto da imagem.');
+          const msg = error instanceof Error ? error.message : String(error);
+          Alert.alert('Erro no OCR', msg);
         }
       } finally {
         if (isMounted) {

@@ -31,7 +31,8 @@
         "expo-build-properties",
         {
           "android": {
-            "ndkVersion": "26.1.10909125"
+            "ndkVersion": "26.1.10909125",
+            "extraProguardRules": "-keep class com.margelo.nitro.** { *; }\n-keep class com.margelo.nitro.core.HybridObject { *; }\n-keep class com.margelo.nitro.core.** { *; }\n-keep class expo.modules.documentScanner.** { *; }\n-keep class com.google.mlkit.** { *; }\n-keep class com.google.android.gms.internal.mlkit_vision_text_common.** { *; }\n-keep class com.google.android.gms.internal.mlkit_vision_common.** { *; }\n-keep class expo.modules.kotlin.records.Field { *; }\n-keep @interface expo.modules.kotlin.records.Field { *; }\n-keep class expo.modules.mlkit.** { *; }\n-keep class com.rnmlkit.** { *; }"
           }
         }
       ]
