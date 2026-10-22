@@ -1,88 +1,39 @@
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { Text, Pressable, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
-import { useDocument } from '../src/context/DocumentContext';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function HomeScreen() {
-  const { imageUri, reset } = useDocument();
-
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Scanner Inteligente</Text>
-      <Text style={styles.subtitle}>
-        Fotografe ou importe um documento para comecar.
-      </Text>
+    <LinearGradient colors={['#0B132B', '#1C2541', '#0B132B']} style={styles.container}>
+      <Text style={styles.title}>SCANNER INTELIGENTE</Text>
+      <Text style={styles.subtitle}>Digitalize, extraia e gerencie suas contas.</Text>
 
       <Pressable
         style={styles.button}
         onPress={() => router.push('/captura')}
-        accessibilityRole="button"
       >
-        <Text style={styles.buttonText}>Novo documento</Text>
+        <LinearGradient colors={['#00F5FF', '#0088CC']} style={styles.buttonGradient}>
+          <Text style={styles.buttonText}>+ NOVO DOCUMENTO</Text>
+        </LinearGradient>
       </Pressable>
 
       <Pressable
-        style={[styles.button, styles.buttonSecondary]}
+        style={styles.buttonSecondary}
         onPress={() => router.push('/biblioteca')}
-        accessibilityRole="button"
       >
-        <Text style={[styles.buttonText, styles.buttonTextSecondary]}>Biblioteca</Text>
+        <Text style={styles.buttonTextSecondary}>ABRIR BIBLIOTECA</Text>
       </Pressable>
-
-      {imageUri ? (
-        <View style={styles.uriBox}>
-          <Text style={styles.uriLabel}>Imagem selecionada:</Text>
-          <Text style={styles.uriText} numberOfLines={2}>
-            {imageUri}
-          </Text>
-          <Pressable onPress={reset} accessibilityRole="button">
-            <Text style={styles.linkText}>Limpar</Text>
-          </Pressable>
-        </View>
-      ) : null}
-    </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    backgroundColor: '#fff',
-  },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 8 },
-  subtitle: {
-    fontSize: 16,
-    color: '#555',
-    textAlign: 'center',
-    marginBottom: 32,
-  },
-  button: {
-    backgroundColor: '#0a7ea4',
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    minWidth: 240,
-    alignItems: 'center',
-  },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  buttonSecondary: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#0a7ea4',
-    marginTop: 12,
-  },
-  buttonTextSecondary: { color: '#0a7ea4' },
-  uriBox: {
-    marginTop: 32,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    maxWidth: 320,
-  },
-  uriLabel: { fontSize: 12, color: '#888', marginBottom: 4 },
-  uriText: { fontSize: 12, color: '#333', marginBottom: 8 },
-  linkText: { color: '#0a7ea4', fontSize: 14 },
+  container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  title: { fontSize: 28, fontWeight: 'bold', color: '#00F5FF', marginBottom: 8, letterSpacing: 2 },
+  subtitle: { fontSize: 16, color: '#A0AAB2', textAlign: 'center', marginBottom: 48 },
+  button: { width: '100%', maxWidth: 320, borderRadius: 12, marginBottom: 16, overflow: 'hidden' },
+  buttonGradient: { paddingVertical: 16, alignItems: 'center' },
+  buttonText: { color: '#0B132B', fontSize: 16, fontWeight: '900', letterSpacing: 1 },
+  buttonSecondary: { width: '100%', maxWidth: 320, paddingVertical: 16, alignItems: 'center', borderRadius: 12, borderWidth: 1, borderColor: '#00F5FF' },
+  buttonTextSecondary: { color: '#00F5FF', fontSize: 16, fontWeight: 'bold', letterSpacing: 1 },
 });

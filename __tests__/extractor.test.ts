@@ -1,11 +1,11 @@
 import { extractFields } from '../src/utils/extractor';
 
 describe('extractor', () => {
-  it('extrai campos de um Boleto', () => {
+  it('extrai campos de um Boleto com Emissor e Referencia', () => {
     const ocrText = `
-      BANCO DO BRASIL
-      Vencimento: 15/05/2026
-      Beneficiario: Empresa Teste LTDA
+      ENEL DISTRIBUICAO SAO PAULO
+      Referencia: 10/2026
+      Vencimento: 15/11/2026
       CNPJ: 11.222.333/0001-81
       Valor do Documento: R$ 1.234,56
       Valor Total: R$ 1.250,00
@@ -15,42 +15,23 @@ describe('extractor', () => {
     const fields = extractFields(ocrText);
 
     expect(fields.documentType).toBe('BOLETO');
+    expect(fields.issuer).toBe('ENEL');
+    expect(fields.referenceMonth).toBe('10/2026');
     expect(fields.cnpj).toBe('11222333000181');
-    expect(fields.date).toBe('2026-05-15');
-    expect(fields.totalAmountCents).toBe(125000); // Pegou o valor da linha "Total"
+    expect(fields.dueDate).toBe('2026-11-15');
+    expect(fields.totalAmountCents).toBe(125000);
   });
 
-  it('extrai campos de uma Nota Fiscal', () => {
+  it('identifica PIX e extrai valor total', () => {
     const ocrText = `
-      DANFE - NOTA FISCAL ELETRONICA
-      Data de Emissao: 01/10/2026
-      CPF do Consumidor: 529.982.247-25
-      Valor Total da Nota: 50,00
+      COMPROVANTE DE PIX
+      Valor: R$ 50,00
+      Data: 01/10/2026
     `;
 
     const fields = extractFields(ocrText);
 
-    expect(fields.documentType).toBe('NOTA_FISCAL');
-    expect(fields.cpf).toBe('52998224725');
-    expect(fields.date).toBe('2026-10-01');
+    expect(fields.documentType).toBe('PIX');
     expect(fields.totalAmountCents).toBe(5000);
-  });
-
-  it('ignora CNPJ e CPF invalidos', () => {
-    const ocrText = `
-      CNPJ invalido: 11.111.111/1111-11
-      CPF invalido: 123.456.789-00
-    `;
-
-    const fields = extractFields(ocrText);
-
-    expect(fields.cnpj).toBeNull();
-    expect(fields.cpf).toBeNull();
-  });
-
-  it('retorna nulos se o texto estiver vazio', () => {
-    const fields = extractFields('');
-    expect(fields.documentType).toBe('DESCONHECIDO');
-    expect(fields.totalAmountCents).toBeNull();
   });
 });

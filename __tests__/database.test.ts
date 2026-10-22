@@ -24,10 +24,12 @@ describe('database', () => {
   it('salva um documento', () => {
     saveDocument('file:///img.jpg', 'Texto OCR', {
       documentType: 'BOLETO',
+      issuer: 'ENEL',
+      referenceMonth: '10/2026',
       cnpj: '11222333000181',
       cpf: null,
       totalAmountCents: 1000,
-      date: '2026-10-01',
+      dueDate: '2026-10-01',
       boletoLine: null,
     });
     const db = SQLite.openDatabaseSync('scanner.db');
@@ -36,12 +38,15 @@ describe('database', () => {
       expect.any(String),
       'file:///img.jpg',
       'BOLETO',
+      'ENEL',
+      '10/2026',
       '11222333000181',
       null,
       1000,
       '2026-10-01',
       null,
       'Texto OCR',
+      0,
       expect.any(String)
     );
   });

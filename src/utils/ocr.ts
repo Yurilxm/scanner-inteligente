@@ -1,23 +1,23 @@
 import { recognizeText } from '@infinitered/react-native-mlkit-text-recognition';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as ImageManipulator from 'expo-image-manipulator';
 
 export async function extractTextFromImage(uri: string): Promise<string> {
   try {
-    // 1. Verifica se o arquivo original realmente existe
     const fileInfo = await FileSystem.getInfoAsync(uri);
-    if (!fileInfo.exists) {
-      throw new Error(`Arquivo nao encontrado: ${uri}`);
-    }
+    if (!fileInfo.exists) throw new Error(`Arquivo nao encontrado: ${uri}`);
 
-    // 2. Copia a imagem para o diretorio de cache com um nome simples
-    //    Isso evita problemas do ML Kit com caminhos longos ou pastas privadas
+    // Redimensiona para 1080px de largura. O ML Kit perde texto em fotos muito grandes!
+    const manipResult = await ImageManipulator.manipulateAsync(
+      uri,
+      [{ resize: { width: 1080 } }],
+      { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+    );
+
     const tempPath = `${FileSystem.cacheDirectory}ocr_temp_${Date.now()}.jpg`;
-    await FileSystem.copyAsync({ from: uri, to: tempPath });
+    await FileSystem.copyAsync({ from: manipResult.uri, to: tempPath });
 
-    // 3. Passa o caminho do cache para o OCR
     const result = await recognizeText(tempPath);
-    
-    // 4. Limpa o arquivo temporario
     await FileSystem.deleteAsync(tempPath, { idempotent: true });
 
     return result?.text || '';
