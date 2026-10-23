@@ -12,6 +12,7 @@ Aplicativo mobile de finanças pessoais focado em **privacidade absoluta**. Digi
 - **Aprendizado Contínuo:** Reclassificação manual com palavra-chave. Nas próximas leituras, o app acerta automaticamente.
 - **Consulta de CNPJ (opcional):** Desligada por padrão; ative em Configurações > Privacidade. Quando o emissor não é reconhecido, envia **apenas o CNPJ** para BrasilAPI + OpenCNPJ + PublicaCNPJ em paralelo (timeout 4s). Só CNPJs válidos são consultados, e o cache local (30 dias) é usado mesmo com a opção desligada.
 - **Tolerante a OCR:** Reconhece ```VENCIWENTO```, ```Vencirmanto```, ```5102026```, ```1 O/2026``` (erros comuns do ML Kit).
+- **Linha Digitável Validada:** Confere os dígitos verificadores (Febraban, 47 e 48 dígitos) e descarta leituras erradas do OCR. Quando válida, o valor e o vencimento vêm da própria linha.
 - **Gestão de Contas:** Status Pago/Pendente com Data de Pagamento.
 - **Notificações Configuráveis:** 5, 3 ou 1 dia antes, uma vez ou diariamente.
 - **Exportação:** PDF (visualizador nativo) e CSV (padrão Excel pt-BR).
@@ -27,7 +28,7 @@ Aplicativo mobile de finanças pessoais focado em **privacidade absoluta**. Digi
 - **Banco:** ```expo-sqlite``` (local)
 - **UI:** ```expo-linear-gradient```, ```react-native-reanimated```, ```react-native-gesture-handler```
 - **Exportação:** ```expo-print```, ```expo-sharing```, ```expo-intent-launcher```
-- **Testes:** Jest + Testing Library (**107 testes automatizados**)
+- **Testes:** Jest + Testing Library (**128 testes automatizados**)
 
 ## Como Instalar (Desenvolvedores)
 
@@ -70,7 +71,7 @@ O script cria/atualiza ```Planilha_Contas.xlsx``` automaticamente, com backup an
 - **Pipeline de Imagem:** Redimensionamento para 1080px antes do OCR.
 - **Extrator:** Regex contextual + fallback posicional + cache de CNPJ e, se autorizado, consulta em paralelo (circuit breaker de 60s se todas APIs falharem).
 - **Banco versionado:** Migrações via ```PRAGMA user_version``` (v1 corrige tipos de ```isPaid```/```totalAmountCents``` em bancos antigos).
-- **Testes:** 107 testes cobrindo extração, banco, migração, notificações, privacidade, CSV/HTML escape, cache de CNPJ, boletos reais (Enel, Prolagos, UVA, Sicoob, NetMaxxi).
+- **Testes:** 128 testes cobrindo extração, banco, migração, notificações, privacidade, CSV/HTML escape, linha digitável, cache de CNPJ, boletos reais (Enel, Prolagos, UVA, Sicoob, NetMaxxi).
 
 ## Workarounds Críticos (Windows)
 

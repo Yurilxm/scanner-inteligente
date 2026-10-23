@@ -1,6 +1,7 @@
 import { ExtractedFields, DocumentType } from '../types/document';
 import { getCachedCNPJ, saveCachedCNPJ } from '../db/database';
 import { isValidCNPJ } from './validators';
+import { validateBoletoLine, decodeBoletoLine } from './boleto';
 
 export type ExtractOptions = {
   // Consulta o CNPJ em APIs publicas (BrasilAPI, OpenCNPJ, PublicaCNPJ). Desligado por padrao.
@@ -170,6 +171,22 @@ function extractCNPJ(text: string): string | null {
   return null;
 }
 
+// Linha digitavel: tolera pontos, espacos e hifens do OCR; descarta leituras com DV errado
+const BOLETO_LINE_PATTERNS = [
+  /\d{5}[.\s]?\d{5}\s*\d{5}[.\s]?\d{6}\s*\d{5}[.\s]?\d{6}\s*\d\s*\d{14}/g,  // bancario (47)
+  /\d{11}[\s-]?\d\s*\d{11}[\s-]?\d\s*\d{11}[\s-]?\d\s*\d{11}[\s-]?\d/g,     // arrecadacao (48)
+];
+
+function extractBoletoLine(text: string): string | null {
+  for (const pattern of BOLETO_LINE_PATTERNS) {
+    for (const match of text.matchAll(pattern)) {
+      const digits = match[0].replace(/\D/g, '');
+      if (validateBoletoLine(digits)) return digits;
+    }
+  }
+  return null;
+}
+
 function mapCNAEToCategory(cnae: string): string | null {
   const code = cnae.replace(/\D/g, '');
   if (code.startsWith('351')) return 'ENERGIA';
@@ -329,20 +346,19 @@ export async function extractFields(
     } catch {}
   }
 
-  // 4. VENCIMENTO
-  const dueDate = extractDueDate(text);
+  // 4. LINHA DIGITÁVEL (só aceita se os dígitos verificadores conferirem)
+  const boletoLine = extractBoletoLine(text);
+  const boleto = boletoLine ? decodeBoletoLine(boletoLine) : null;
+  if (boleto && documentType === 'OUTROS') documentType = 'BOLETO';
 
-  // 5. VALOR
-  const totalAmountCents = extractValue(text);
+  // 5. VENCIMENTO e 6. VALOR: a linha validada é mais confiável que o texto do OCR
+  const dueDate = boleto?.dueDate ?? extractDueDate(text);
+  const totalAmountCents = boleto?.amountCents ?? extractValue(text);
 
-  // 6. REFERÊNCIA
+  // 7. REFERÊNCIA
   const referenceMonth = extractReference(text);
 
-  // 7. LINHA DIGITÁVEL
-  const boletoMatch = text.match(/\d{5}\.\d{5}\s+\d{5}\.\d{6}\s+\d{5}\.\d{6}\s+\d\s+\d{14}|\d{11,12}\s+\d\s+\d{11,12}\s+\d\s+\d{11,12}\s+\d\s+\d{11,12}/);
-
   return {
-    documentType, issuer, referenceMonth, cnpj: cnpjClean, cpf: null, totalAmountCents, dueDate,
-    boletoLine: boletoMatch ? boletoMatch[0] : null,
+    documentType, issuer, referenceMonth, cnpj: cnpjClean, cpf: null, totalAmountCents, dueDate, boletoLine,
   };
 }
