@@ -1,1 +1,1 @@
-export const APP_NAME = 'Control Radar';
+export const APP_NAME = 'Control';

@@ -1,12 +1,10 @@
-feat: perfis de usuario, data de pagamento e correcoes de UI/UX
+feat: extrator inteligente, scripts de setup e correcoes finais
 
-- Implementado sistema de perfis separados (Yuri e Mae) com bancos SQLite independentes
-- Adicionado seletor de perfil na tela Home
-- Adicionado campo e modal de Data de Pagamento manual
-- Corrigido preview de CSV com layout legivel em formato de cards
-- Implementado fallback de PDF para o visualizador nativo do Android
-- Corrigido bug da tela branca ao salvar documento
-- Corrigido conflito de gestos no Zoom da imagem
-- Removido botao de debug de OCR da tela de revisao
-- Adicionados 7 novos testes automatizados (33 testes passando no total)
-- Atualizado README.md com as novas funcionalidades
+- Extrator reescrito com logica contextual (foco no tipo de conta, nao no banco)
+- Suporte a Condominio, IPVA, Seguro, Gas, Vistoria, Faculdade, etc
+- Corrigida extracao de data de vencimento (\d no new RegExp)
+- Corrigida extracao de valor priorizando "Total a Pagar"
+- Criado setup_dev.ps1 para facilitar instalacao de devs
+- Criado setup_excel.ps1 para criacao automatica da pasta da planilha
+- Corrigido salvamento em branco, zoom, PDF e CSV
+- 33 testes automatizados passando

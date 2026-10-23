@@ -1,4 +1,4 @@
-export type DocumentType = 'BOLETO' | 'NOTA_FISCAL' | 'CONTA' | 'RECIBO' | 'PIX' | 'DESCONHECIDO';
+export type DocumentType = 'OUTROS' | 'BOLETO' | 'NOTA_FISCAL' | 'CONTA' | 'RECIBO' | 'PIX' | 'DESCONHECIDO';
 
 export type ExtractedFields = {
   documentType: DocumentType;
