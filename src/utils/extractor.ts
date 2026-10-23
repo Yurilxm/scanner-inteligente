@@ -10,7 +10,6 @@ function cleanText(text: string) {
     .replace(/\s+/g, ' ');
 }
 
-// Remove CNPJ, CPF, boleto, datas e mes/ano para evitar falsos positivos em valores
 function removeNoiseForValues(text: string): string {
   return text
     .replace(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/g, ' [CNPJ] ')
@@ -18,98 +17,153 @@ function removeNoiseForValues(text: string): string {
     .replace(/\d{3}\.\d{3}\.\d{3}-\d{2}/g, ' [CPF] ')
     .replace(/\d{5}\.\d{5}\s+\d{5}\.\d{6}\s+\d{5}\.\d{6}\s+\d\s+\d{14}/g, ' [BOLETO] ')
     .replace(/\d{2}\/\d{2}\/\d{4}/g, ' [DATE] ')
-    .replace(/\b\d{2}\/\d{4}\b/g, ' [MONTHYEAR] ');
+    .replace(/\b\d{2}\/\d{4}\b/g, ' [MY] ');
 }
 
-// ============ VALOR ============
-function extractValueNear(text: string, keywords: string[]): number | null {
-  const cleaned = removeNoiseForValues(text);
+// Normaliza valor (BR/EUA) -> centavos
+function parseToCents(raw: string): number | null {
+  let val = raw.trim();
+  if (val.includes(',') && val.includes('.')) {
+    val = val.replace(/\./g, '').replace(',', '.');
+  } else if (val.includes(',')) {
+    val = val.replace(',', '.');
+  }
+  const num = parseFloat(val);
+  if (!isFinite(num) || num <= 0) return null;
+  return Math.round(num * 100);
+}
+
+// VENCIMENTO tolerante: Vencimento, Venc, Vencirmanto, VENCIWENTO, NESANO...
+function extractDueDate(text: string): string | null {
+  const keywords = [
+    'Vencimento', 'VENCIMENTO', 'Vencirmanto', 'VENCIWENTO',
+    'Venclmento', 'Venciment0', 'Vencimento',
+  ];
+  // Com separadores explícitos
   for (const kw of keywords) {
-    // 1. Prefere decimais (462,06 ou 462.06)
-    const regexDecimal = new RegExp(`${kw}[^\\d]{0,80}?(?:R\\$\\s*)?(\\d{1,3}(?:\\.\\d{3})*[.,]\\d{2})`, 'gi');
-    for (const match of cleaned.matchAll(regexDecimal)) {
-      let val = match[1];
-      if (val.includes(',') && val.includes('.')) val = val.replace(/\./g, '').replace(',', '.');
-      else if (val.includes(',')) val = val.replace(',', '.');
-      const parsed = Math.round(parseFloat(val) * 100);
-      if (parsed > 0) return parsed;
-    }
-    // 2. Inteiros exigem R$ explicito (evita pegar ano)
-    const regexInt = new RegExp(`${kw}[^\\d]{0,40}(?:R\\$\\s*)(\\d{3,})`, 'gi');
-    for (const match of cleaned.matchAll(regexInt)) {
-      const num = parseInt(match[1], 10);
-      if (num > 0 && num < 10000) return num * 100;
-    }
+    const regex = new RegExp(`${kw}[^\\d]{0,60}?(\\d{2})[\\/\\-\\.](\\d{2})[\\/\\-\\.](\\d{4})`, 'i');
+    const m = text.match(regex);
+    if (m) return `${m[3]}-${m[2]}-${m[1]}`;
   }
-  return null;
-}
-
-function extractValueFallback(text: string): number | null {
-  const cleaned = removeNoiseForValues(text);
-  // 1. Prefere decimais, exclui anos (1900-2100)
-  const decimalMatches = cleaned.match(/(\d{1,3}(?:\.\d{3})*[.,]\d{2})/g);
-  if (decimalMatches) {
-    const parsed = decimalMatches
-      .map(v => {
-        let val = v;
-        if (val.includes(',') && val.includes('.')) val = val.replace(/\./g, '').replace(',', '.');
-        else if (val.includes(',')) val = val.replace(',', '.');
-        return parseFloat(val);
-      })
-      .filter(v => v > 0 && v < 10000 && !(v >= 1900 && v <= 2100));
-    if (parsed.length > 0) return Math.round(Math.max(...parsed) * 100);
-  }
-  // 2. Inteiros apenas com R$
-  const ints: number[] = [];
-  for (const m of cleaned.matchAll(/R\$\s*(\d{3,})/g)) {
-    const num = parseInt(m[1], 10);
-    if (num > 0 && num < 10000) ints.push(num);
-  }
-  if (ints.length > 0) return Math.max(...ints) * 100;
-  return null;
-}
-
-// ============ DATA ============
-function extractDateNear(text: string, keywords: string[]): string | null {
+  // Sem separador entre mês e ano (ex: 15/102026)
   for (const kw of keywords) {
-    const regex = new RegExp(`${kw}[^\\d]{0,50}?(\\d{2})[\\/\\.\\-](\\d{2})[\\/\\.\\-](\\d{4})`, 'i');
-    const match = text.match(regex);
-    if (match) return `${match[3]}-${match[2]}-${match[1]}`;
+    const regex = new RegExp(`${kw}[^\\d]{0,60}?(\\d{2})[\\/\\-\\.](\\d{2})(\\d{4})`, 'i');
+    const m = text.match(regex);
+    if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  }
+  // Totalmente sem barras (ex: 5102026) — próxima de "Venc" com OCR ruim
+  const noSlash = text.match(/(?:Venc|VENC|Vencirm)[a-z]*[^\d]{0,40}(\d{1,2})(\d{2})(\d{4})/);
+  if (noSlash) {
+    const day = noSlash[1].padStart(2, '0');
+    return `${noSlash[3]}-${noSlash[2]}-${day}`;
+  }
+  // Venc. abreviado (teste)
+  const abrev = text.match(/\bVenc\.[^\d]{0,20}?(\d{2})[\/\-](\d{2})[\/\-](\d{4})/i);
+  if (abrev) return `${abrev[3]}-${abrev[2]}-${abrev[1]}`;
+
+  // Fallback: primeira data DD/MM/AAAA ou DD/MMYYYY do texto
+  // (ignora "Data do Documento" e "Data de Emissão")
+  const textWithoutDates = text.replace(/(?:Data do Documento|Data de Emissao|Data de Emissão|Data Doc)[^\d]{0,40}\d{2}[\/\-.]\d{2}[\/\-.]\d{4}/gi, ' [DOC_DATE] ');
+  const looseDate = textWithoutDates.match(/\b(\d{2})[\/\-](\d{2})(?:[\/\-]?)(\d{4})\b/);
+  if (looseDate) {
+    return `${looseDate[3]}-${looseDate[2]}-${looseDate[1]}`;
   }
   return null;
 }
 
-// ============ REFERÊNCIA ============
+// VALOR priorizando TOTAL A PAGAR / TOTAL
+function extractValue(text: string): number | null {
+  const cleaned = removeNoiseForValues(text);
+
+  // 1. Procura por "TOTAL A PAGAR" ou "TOTAL (R$)" ou "TOTAL APAGAR" — pega o ÚLTIMO match
+  const totalPatterns = [
+    'TOTAL\\s*A\\s*PAGAR', 'TOTAL\\s*APAGAR',
+    'TOTAL\\s*\\(R\\$\\)', 'Total a Pagar',
+  ];
+  for (const pat of totalPatterns) {
+    const regex = new RegExp(`(?:${pat})[^\\d]{0,150}?(?:R\\$\\s*)?(\\d{1,3}(?:\\.\\d{3})*[.,]\\d{2})`, 'gi');
+    const matches = [...cleaned.matchAll(regex)];
+    for (let i = matches.length - 1; i >= 0; i--) {
+      const cents = parseToCents(matches[i][1]);
+      if (cents && cents < 100000000) return cents;
+    }
+  }
+
+  // 2. VALOR TOTAL (prioridade sobre Valor do Documento)
+  const valorTotalPatterns = ['VALOR TOTAL', 'Valor Total', 'VALOR TOTAL A PAGAR'];
+  for (const pat of valorTotalPatterns) {
+    const regex = new RegExp(`(?:${pat})[^\\d]{0,150}?(?:R\\$\\s*)?(\\d{1,3}(?:\\.\\d{3})*[.,]\\d{2})`, 'gi');
+    const matches = [...cleaned.matchAll(regex)];
+    for (let i = matches.length - 1; i >= 0; i--) {
+      const cents = parseToCents(matches[i][1]);
+      if (cents && cents < 100000000) return cents;
+    }
+  }
+
+  // 3. VALOR DO DOCUMENTO
+  const valPatterns = ['Valor do documento', 'VALOR DO DOCUMENTO', 'VALOR DO DOCIMEN', 'Vaor do Docutmenta'];
+  for (const pat of valPatterns) {
+    const regex = new RegExp(`(?:${pat})[^\\d]{0,150}?(?:R\\$\\s*)?(\\d{1,3}(?:\\.\\d{3})*[.,]\\d{2})`, 'gi');
+    const matches = [...cleaned.matchAll(regex)];
+    for (let i = matches.length - 1; i >= 0; i--) {
+      const cents = parseToCents(matches[i][1]);
+      if (cents && cents < 100000000) return cents;
+    }
+  }
+
+  // 3. Fallback: último valor decimal, ignorando anos
+  const decimals = cleaned.match(/(\d{1,3}(?:\.\d{3})*[.,]\d{2})/g);
+  if (decimals) {
+    const parsed = decimals
+      .map(parseToCents)
+      .filter((v): v is number => v !== null && !(v >= 190000 && v <= 210000));
+    if (parsed.length > 0) return parsed[parsed.length - 1];
+  }
+
+  // 4. Fallback final: valores com "R$" explícito, sem decimais
+  const rsInts = [...cleaned.matchAll(/R\$\s*(\d{3,})/g)].map(m => parseInt(m[1], 10));
+  if (rsInts.length > 0) return Math.max(...rsInts) * 100;
+
+  return null;
+}
+
+// REFERÊNCIA
 function extractReference(text: string): string | null {
-  // 1. Período: "10/09/2026 - 09/10/2026" (pega o MM/YYYY da data final)
-  const periodMatch = text.match(/(\d{2})\/(\d{2})\/(\d{4})\s*[-\u2013]\s*(\d{2})\/(\d{2})\/(\d{4})/);
+  // 1. Período DD/MM/AAAA - DD/MM/AAAA (tolerante a O→0 no meio)
+  const normalized = text
+    // "1 O/" ou "1O/" ou "1 O " (próximo de barra/espaço) → "10"
+    .replace(/(\d)\s*[Oo](?=\s*[\/\s])/g, '$10')
+    // "1O2" (dígito O dígito) → "102"
+    .replace(/(\d)[Oo](\d)/g, '$10$2')
+    // "O/2026" isolado → "0/2026"
+    .replace(/\b[Oo](\/\d{4})/g, '0$1');
+  const periodMatch = normalized.match(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})\s*[-\u2013]\s*(\d{2})[\/\-](\d{1,2})[\/\s]?(\d{4})/);
   if (periodMatch) {
-    return `${periodMatch[5]}/${periodMatch[6]}`;
+    const month = periodMatch[5].padStart(2, '0');
+    return `${month}/${periodMatch[6]}`;
   }
 
-  // 2. Keyword "Referência" ou "Mês/Ano" seguido de MM/AAAA
-  const keywordMatch = text.match(/(?:MES\/ANO|Referencia|NESANO|PERIODO DE REFERENCIA)[^\d]{0,40}(\d{2})[\/\.\-\s](\d{4})/i);
-  if (keywordMatch) {
-    return `${keywordMatch[1]}/${keywordMatch[2]}`;
+  // 2. Keywords (tolerante a erros do OCR)
+  const keywords = ['MES\\/ANO', 'Referencia', 'REFERENCIUA', 'REFERENCIA', 'NESANO', 'PERIODO DE REFERENCIA'];
+  for (const kw of keywords) {
+    const regex = new RegExp(`(?:${kw})[^\\d]{0,60}?(\\d{2})[\\/\\.\\-\\s](\\d{4})`, 'i');
+    const m = text.match(regex);
+    if (m) return `${m[1]}/${m[2]}`;
   }
-
   return null;
 }
 
-// ============ CNPJ ============
+// CNPJ (com fallback para OCR ruim)
 function extractCNPJ(text: string): string | null {
-  // Formato com máscara: 34.185.306/0001-81
   const masked = text.match(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/);
   if (masked) return masked[0].replace(/\D/g, '');
 
-  // Formato sem máscara (14 dígitos seguidos, mas só se estiver perto de "CNPJ" ou "Beneficiário")
-  const contextMatch = text.match(/(?:CNPJ|BENEFICIARIO|CEDENTE)[^\d]{0,30}(\d{14})/i);
+  const contextMatch = text.match(/(?:CNPJ|BENEFICIARIO|CEDENTE)[^\d]{0,40}(\d{14})/i);
   if (contextMatch) return contextMatch[1];
 
   return null;
 }
 
-// ============ CNAE ============
 function mapCNAEToCategory(cnae: string): string | null {
   const code = cnae.replace(/\D/g, '');
   if (code.startsWith('351')) return 'ENERGIA';
@@ -120,12 +174,13 @@ function mapCNAEToCategory(cnae: string): string | null {
   if (code.startsWith('853')) return 'FACULDADE';
   if (code.startsWith('651') || code.startsWith('662')) return 'SEGURO';
   if (code.startsWith('9313')) return 'ACADEMIA';
-  if (code.startsWith('8630')) return 'SAUDE';
   return null;
 }
 
-// ============ CONSULTA CNPJ (paralela, 4s timeout) ============
+let cnpjFetchDisabledUntil = 0;
+
 async function fetchCNPJData(cnpj: string): Promise<{ razao_social: string; categoria: string } | null> {
+  if (Date.now() < cnpjFetchDisabledUntil) return null;
   const clean = cnpj.replace(/\D/g, '');
   let cached: any = null;
   try { cached = getCachedCNPJ(clean); } catch {}
@@ -152,57 +207,56 @@ async function fetchCNPJData(cnpj: string): Promise<{ razao_social: string; cate
     if (settled.status === 'fulfilled' && settled.value) {
       const { source, data } = settled.value;
       let razao = '', cnae = '';
-      if (source === 'BrasilAPI') {
-        razao = data.razao_social || ''; cnae = String(data.cnae_fiscal || '');
-      } else if (source === 'OpenCNPJ') {
-        razao = data.razao_social || ''; cnae = String(data.cnae_principal || '');
-      } else if (source === 'PublicaCNPJ') {
+      if (source === 'BrasilAPI') { razao = data.razao_social || ''; cnae = String(data.cnae_fiscal || ''); }
+      else if (source === 'OpenCNPJ') { razao = data.razao_social || ''; cnae = String(data.cnae_principal || ''); }
+      else if (source === 'PublicaCNPJ') {
         const est = data.estabelecimento || {}; const ativ = est.atividade_principal || {};
         razao = data.razao_social || ''; cnae = String(ativ.subclasse || '');
       }
       const cat = mapCNAEToCategory(cnae) || razao.split(' ').slice(0, 2).join(' ').toUpperCase() || 'OUTROS';
-      const result = { razao_social: razao, categoria: cat };
       try { saveCachedCNPJ(clean, razao, cnae, '', cat); } catch {}
-      return result;
+      return { razao_social: razao, categoria: cat };
     }
   }
+  cnpjFetchDisabledUntil = Date.now() + 60000;
   return null;
 }
 
-// ============ FALLBACK DE EMISSOR POR BENEFICIÁRIO ============
+// EMISSOR por palavra-chave (prioridade para marcas conhecidas)
+function extractIssuerFromKeywords(text: string): string | null {
+  if (/NETMAXX/i.test(text)) return 'NETMAXXI';
+  if (/PROLAGOS/i.test(text)) return 'PROLAGOS';
+  if (/\bENEL\b/i.test(text) || /AMPLA\s*ENERGIA/i.test(text)) return 'ENEL';
+  if (/GIGA\s*MAIS|GIGA\+/i.test(text)) return 'GIGA MAIS';
+  if (/CONDOMIN|CISNE\s*BRANC/i.test(text)) return 'CONDOMINIO';
+  if (/\bUVA\b|ANTARES|EDUCACIONAL|FACULDADE|UNIVERSIDADE/i.test(text)) return 'FACULDADE';
+  if (/IPVA|DETRAN/i.test(text)) return 'IPVA';
+  if (/SEGURO|SEGURADORA|PORTO SEGURO/i.test(text)) return 'SEGURO';
+  if (/GAS|ULTRAGAZ|LIQUIGAS/i.test(text)) return 'GAS';
+  if (/VISTORIA/i.test(text)) return 'VISTORIA';
+  if (/TIM|VIVO|CLARO/i.test(text)) return 'TELEFONIA';
+  if (/ACADEMIA|FITNESS|SMART FIT|GYM/i.test(text)) return 'ACADEMIA';
+  return null;
+}
+
 function extractIssuerFromBeneficiary(text: string): string | null {
-  const benMatch = text.match(/(?:BENEFICIARIO|CEDENTE)[^A-Z0-9]+([A-Z0-9\s\.\-]{4,50})/i);
+  const benMatch = text.match(/(?:BENEFICIARIO|CEDENTE|Beneficiário|Beneficiario)[^A-Z0-9]+([A-Z0-9\s\.\-]{4,50})/i);
   if (!benMatch) return null;
-  
   const name = benMatch[1]
     .replace(/\b(SA|S\.A\.|LTDA|ME|EPP|EIRELI|SOCIEDADE|ANONIMA|S\/A)\b/gi, '')
     .trim();
-  
   if (/SICOOB|ITAU|BRADESCO|CAIXA|BB|BANCO DO BRASIL/i.test(name)) return null;
-  
-  // Regras por palavra-chave
-  if (/CONDOMIN/i.test(name)) return 'CONDOMINIO';
-  if (/FACULDADE|UNIVERSIDADE|UVA|ANHANGUERA|ESTACIO|UNIP|EDUCACIONAL/i.test(name)) return 'FACULDADE';
-  if (/SEGURO|SEGURADORA|PORTO/i.test(name)) return 'SEGURO';
-  if (/GAS|ULTRAGAZ|LIQUIGAS/i.test(name)) return 'GAS';
-  if (/NETMAXXI|GIGA|FIBRA|TELECOM|INTERNET/i.test(name)) return 'INTERNET';
-  if (/TIM|VIVO|CLARO/i.test(name)) return 'TELEFONIA';
-  if (/ACADEMIA|FITNESS|SMART FIT|GYM/i.test(name)) return 'ACADEMIA';
-  
-  // Fallback: 2 primeiras palavras do nome
   const clean = name.split(' ').slice(0, 2).join(' ').toUpperCase();
   return clean.length >= 3 ? clean : null;
 }
 
-// ============ EXTRAÇÃO PRINCIPAL ============
 export async function extractFields(
   rawData: any,
   learnedCategories: { pattern: string; category: string }[] = []
 ): Promise<ExtractedFields> {
   let textInput = '';
-  if (typeof rawData === 'string') {
-    textInput = rawData;
-  } else if (rawData) {
+  if (typeof rawData === 'string') textInput = rawData;
+  else if (rawData) {
     const parts: string[] = [];
     if (rawData.text) parts.push(rawData.text);
     if (rawData.blocks && Array.isArray(rawData.blocks)) {
@@ -216,21 +270,21 @@ export async function extractFields(
     return { documentType: 'OUTROS', issuer: null, referenceMonth: null, cnpj: null, cpf: null, totalAmountCents: null, dueDate: null, boletoLine: null };
   }
 
-  // 1. TIPO DE DOCUMENTO
+  // 1. TIPO
   let documentType: DocumentType = 'OUTROS';
-  if (/BENEFICIARIO|NOSSO NUMERO|LINHA DIGITAVEL|TOTAL A PAGAR|BOLETO|UVA|FACULDADE|EDUCACIONAL|UNIVERSIDADE/i.test(text)) documentType = 'BOLETO';
+  if (/BENEFICIARIO|NOSSO NUMERO|LINHA DIGITAVEL|TOTAL A PAGAR|BOLETO|UVA|FACULDADE|EDUCACIONAL|UNIVERSIDADE|ENEL|PROLAGOS|NETMAXX|SICOOB|CONDOMIN|CISNE BRANC|VALOR DO DOCUMENTO|VALOR TOTAL/i.test(text)) documentType = 'BOLETO';
   else if (/PIX/i.test(text) && !/BENEFICIARIO/i.test(text)) documentType = 'PIX';
   else if (/NOTA FISCAL|DANFE/i.test(text)) documentType = 'NOTA_FISCAL';
   else if (/RECIBO/i.test(text)) documentType = 'RECIBO';
 
-  // 2. CNPJ (extrair sempre, é útil para classificação)
+  // 2. CNPJ
   const cnpjClean = extractCNPJ(text);
 
-  // 3. EMISSOR (ordem de prioridade)
+  // 3. EMISSOR
   let issuer: string | null = null;
   const textLower = text.toLowerCase();
 
-  // 3.1 Categorias aprendidas (usuário ensinou)
+  // 3.1 Aprendido
   for (const learned of learnedCategories) {
     const patternNorm = learned.pattern.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     if (patternNorm.length >= 3 && textLower.includes(patternNorm)) {
@@ -239,27 +293,13 @@ export async function extractFields(
     }
   }
 
-  // 3.2 Beneficiário (extração inteligente)
-  if (!issuer) {
-    issuer = extractIssuerFromBeneficiary(text);
-  }
+  // 3.2 Keyword (marcas conhecidas)
+  if (!issuer) issuer = extractIssuerFromKeywords(text);
 
-  // 3.3 Lista fixa (palavras-chave no texto)
-  if (!issuer) {
-    if (/CONDOMIN/i.test(text)) issuer = 'CONDOMINIO';
-    else if (/IPVA|DETRAN/i.test(text)) issuer = 'IPVA';
-    else if (/SEGURO|SEGURADORA|PORTO SEGURO/i.test(text)) issuer = 'SEGURO';
-    else if (/GAS|ULTRAGAZ|LIQUIGAS/i.test(text)) issuer = 'GAS';
-    else if (/VISTORIA/i.test(text)) issuer = 'VISTORIA';
-    else if (/FACULDADE|UNIVERSIDADE|\bUVA\b/i.test(text)) issuer = 'FACULDADE';
-    else if (/ENEL/i.test(text)) issuer = 'ENEL';
-    else if (/PROLAGOS/i.test(text)) issuer = 'PROLAGOS';
-    else if (/NETMAXXI|GIGA MAIS|FIBRA|TELECOM|INTERNET/i.test(text)) issuer = 'INTERNET';
-    else if (/TIM|VIVO|CLARO/i.test(text)) issuer = 'TELEFONIA';
-    else if (/ACADEMIA|FITNESS|SMART FIT|GYM/i.test(text)) issuer = 'ACADEMIA';
-  }
+  // 3.3 Beneficiário
+  if (!issuer) issuer = extractIssuerFromBeneficiary(text);
 
-  // 3.4 CNPJ API (só se ainda não classificou e temos internet)
+  // 3.4 CNPJ API (último recurso)
   if (!issuer && cnpjClean) {
     try {
       let timeoutHandle: any = null;
@@ -274,36 +314,19 @@ export async function extractFields(
   }
 
   // 4. VENCIMENTO
-  let dueDate = extractDateNear(text, ['Vencimento', 'VENCIMENTO', 'Venc\\.', 'VENC\\.']);
-  if (!dueDate) dueDate = extractDateNear(text, ['Data do Documento', 'Data Doc']);
+  const dueDate = extractDueDate(text);
 
-  // 5. VALOR (prioriza keywords, depois maior valor)
-  let totalAmountCents = extractValueNear(text, [
-    'Total a Pagar', 'TOTAL A PAGAR',
-    'Valor Total', 'VALOR TOTAL',
-    'Valor do Documento', 'VALOR DO DOCUMENTO',
-    'Valor do Docimento', 'VALOR DO DOCIMENTO',
-    'Valor a Pagar', 'VALOR A PAGAR',
-    'Valor', 'VALOR'
-  ]);
-  if (!totalAmountCents) {
-    totalAmountCents = extractValueFallback(text);
-  }
+  // 5. VALOR
+  const totalAmountCents = extractValue(text);
 
   // 6. REFERÊNCIA
   const referenceMonth = extractReference(text);
 
   // 7. LINHA DIGITÁVEL
-  const boletoMatch = text.match(/\d{5}\.\d{5}\s+\d{5}\.\d{6}\s+\d{5}\.\d{6}\s+\d\s+\d{14}/);
+  const boletoMatch = text.match(/\d{5}\.\d{5}\s+\d{5}\.\d{6}\s+\d{5}\.\d{6}\s+\d\s+\d{14}|\d{11,12}\s+\d\s+\d{11,12}\s+\d\s+\d{11,12}\s+\d\s+\d{11,12}/);
 
   return {
-    documentType,
-    issuer,
-    referenceMonth,
-    cnpj: cnpjClean,
-    cpf: null,
-    totalAmountCents,
-    dueDate,
+    documentType, issuer, referenceMonth, cnpj: cnpjClean, cpf: null, totalAmountCents, dueDate,
     boletoLine: boletoMatch ? boletoMatch[0] : null,
   };
 }

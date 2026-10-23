@@ -218,6 +218,25 @@ export default function RevisaoScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 60, paddingBottom: 8 }}>
+          <Text style={{ color: '#00d4ff', fontSize: 14, fontFamily: Theme.fonts.bold }}>REVISAO</Text>
+          <Pressable
+            onPress={async () => {
+              if (!ocrText) return;
+              try {
+                const path = FileSystem.cacheDirectory + 'ocr_debug_' + Date.now() + '.txt';
+                await FileSystem.writeAsStringAsync(path, ocrText);
+                if (await Sharing.isAvailableAsync()) {
+                  await Sharing.shareAsync(path, { mimeType: 'text/plain', dialogTitle: 'OCR Bruto' });
+                }
+              } catch (e) {
+                Alert.alert('Erro', String(e));
+              }
+            }}
+          >
+            <Text style={{ color: '#3fb950', fontSize: 12, fontFamily: Theme.fonts.bold }}>EXPORTAR OCR</Text>
+          </Pressable>
+        </View>
         <Pressable onPress={() => setIsImageVisible(true)} style={styles.imageContainer}>
           <Image source={{ uri: imageUri! }} style={styles.image} resizeMode="contain" />
         </Pressable>

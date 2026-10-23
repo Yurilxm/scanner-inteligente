@@ -1,13 +1,13 @@
-fix: auditoria completa - 10 correcoes criticas, medias e baixas
+feat: extrator baseado em OCRs reais + 71 testes passando
 
-- CSV escapa ; e " (Excel nao quebra mais com emissores compostos)
-- PDF escapa HTML (evita quebra com caracteres especiais)
-- BackHandler fecha modal de reclassify tambem
-- Validators: removida duplicata isValidBoleto e implementado modulo 11 para 48 digitos
-- Notificacao e cancelada ao excluir conta (evita notificacao fantasma)
-- Circuit breaker de CNPJ: nao bloqueia 4s se ja falhou nos ultimos 60s
-- Tipo 'CONTA' removido (nunca usado)
-- OCR em fonte mono (JetBrainsMono) para melhor legibilidade
-- Variaveis nao usadas removidas de validators
-- 3 novos testes: csv_escape, circuit_breaker, e validacao de modulo 11
-- 66 testes automatizados passando sem leak
+- Extrator reescrito com base nos textos reais de 5 boletos (Enel, Prolagos, UVA, Sicoob, NetMaxxi)
+- Tolerante a erros do ML Kit: VENCIWENTO, Vencirmanto, 5102026, 1 O/2026
+- Prioridade de valor: TOTAL A PAGAR > VALOR TOTAL > VALOR DO DOCUMENTO > fallback
+- Fallback de data solta (Sicoob sem keyword de vencimento)
+- Normalizacao de "1 O/" -> "10/" (NetMaxxi periodo de referencia)
+- Indicadores de BOLETO ampliados (SICOOB, CONDOMIN, VALOR DO DOCUMENTO)
+- Consulta de CNPJ em paralelo com circuit breaker de 60s
+- Cache de CNPJ no SQLite (TTL 30 dias)
+- Botao "Exportar OCR" na tela de revisao para debug
+- Novo teste boletos_reais.test.ts com fixtures inline (5 boletos)
+- README atualizado com novas features e 71 testes

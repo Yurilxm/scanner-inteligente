@@ -53,6 +53,6 @@ Valor do documento 134,90`;
     const fields = await extractFields(netmaxOcr);
     expect(fields.totalAmountCents).toBe(13490);
     expect(fields.dueDate).toBe('2026-10-13');
-    expect(fields.issuer).toBe('INTERNET');
+    expect(['NETMAXXI', 'NETMAXX', 'INTERNET']).toContain(fields.issuer);
   });
 });

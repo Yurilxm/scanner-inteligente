@@ -9,11 +9,14 @@ Aplicativo mobile de finanças pessoais focado em **privacidade absoluta**. Digi
 - **Multi-Perfil:** Bancos SQLite independentes (ex: Yuri e Mãe) com troca instantânea.
 - **Scanner Inteligente:** OCR via ML Kit (Google) no próprio aparelho, sem internet.
 - **Extração Contextual:** Identifica Condomínio, IPVA, Seguro, Gás, Faculdade, Internet, Telefonia, Enel, Prolagos, etc.
-- **Aprendizado Contínuo:** Se o app errar o emissor, você pode reclassificar e ensinar a palavra-chave. Nas próximas leituras, ele acerta automaticamente.
-- **Gestão de Contas:** Status Pago/Pendente com Data de Pagamento manual.
-- **Notificações Configuráveis:** Escolha quantos dias antes (5, 3 ou 1) e a frequência (uma vez ou todo dia).
+- **Aprendizado Contínuo:** Reclassificação manual com palavra-chave. Nas próximas leituras, o app acerta automaticamente.
+- **Consulta de CNPJ:** BrasilAPI + OpenCNPJ + PublicaCNPJ em paralelo (timeout 4s) com cache local de 30 dias.
+- **Tolerante a OCR:** Reconhece ```VENCIWENTO```, ```Vencirmanto```, ```5102026```, ```1 O/2026``` (erros comuns do ML Kit).
+- **Gestão de Contas:** Status Pago/Pendente com Data de Pagamento.
+- **Notificações Configuráveis:** 5, 3 ou 1 dia antes, uma vez ou diariamente.
 - **Exportação:** PDF (visualizador nativo) e CSV (padrão Excel pt-BR).
 - **Automação Desktop:** Script Python atualiza planilha Excel com backup automático.
+- **Debug OCR:** Botão ```Exportar OCR``` na tela de revisão para capturar texto bruto.
 - **Zoom na Imagem:** Pinça e toque duplo na tela de detalhes.
 
 ## Stack Tecnológica
@@ -24,7 +27,7 @@ Aplicativo mobile de finanças pessoais focado em **privacidade absoluta**. Digi
 - **Banco:** ```expo-sqlite``` (local)
 - **UI:** ```expo-linear-gradient```, ```react-native-reanimated```, ```react-native-gesture-handler```
 - **Exportação:** ```expo-print```, ```expo-sharing```, ```expo-intent-launcher```
-- **Testes:** Jest + Testing Library (**54 testes automatizados**)
+- **Testes:** Jest + Testing Library (**71 testes automatizados**)
 
 ## Como Instalar (Desenvolvedores)
 
@@ -44,7 +47,7 @@ Aplicativo mobile de finanças pessoais focado em **privacidade absoluta**. Digi
    npx expo run:android --variant release
    ```
 
-### Setup Manual (se preferir)
+### Setup Manual
 ```powershell
 npm install
 npx expo prebuild --clean
@@ -54,31 +57,32 @@ npx expo prebuild --clean
 ## Automação da Planilha (Usuários Finais)
 
 1. Rode o script ```setup_excel.ps1``` no PC. Ele cria a pasta ```Control_Planilha``` na Área de Trabalho.
-2. Exporte o CSV pelo aplicativo (Biblioteca -> CSV -> Compartilhar).
-3. Mova o arquivo CSV para dentro da pasta ```Control_Planilha```.
+2. Exporte o CSV pelo app (Biblioteca -> CSV -> Compartilhar).
+3. Mova o CSV para dentro da pasta ```Control_Planilha```.
 4. Dê dois cliques no ```Atualizar_Planilha.bat```.
 
-O script cria/atualiza a planilha ```Planilha_Contas.xlsx``` automaticamente, fazendo backup antes de cada alteração.
+O script cria/atualiza ```Planilha_Contas.xlsx``` automaticamente, com backup antes de cada alteração.
 
 ## Arquitetura e Decisões Técnicas
 
-- **Banco Local (SQLite):** Cada perfil usa um arquivo ```scanner_[perfil].db``` separado, trocado em tempo de execução.
-- **Tabelas:** ```documents``` (contas), ```settings``` (preferências) e ```learned_categories``` (aprendizado do usuário).
-- **Pipeline de Imagem:** Imagens são redimensionadas para 1080px antes do OCR (evita estouro de memória do ML Kit).
-- **Extrator:** Regex contextual com fallback inteligente (prioriza Total a Pagar, ignora anos e zeros, remove acentos do texto antes de buscar).
+- **Banco Local (SQLite):** Cada perfil usa ```scanner_[perfil].db``` separado, trocado em runtime.
+- **Tabelas:** ```documents``` (contas), ```settings``` (preferências), ```learned_categories``` (aprendizado) e ```cnpj_cache``` (cache de CNPJ com TTL de 30 dias).
+- **Pipeline de Imagem:** Redimensionamento para 1080px antes do OCR.
+- **Extrator:** Regex contextual + fallback posicional + consulta de CNPJ em paralelo (circuit breaker de 60s se todas APIs falharem).
+- **Testes:** 71 testes cobrindo extração, banco, notificações, CSV escape, cache de CNPJ, boletos reais (Enel, Prolagos, UVA, Sicoob, NetMaxxi).
 
 ## Workarounds Críticos (Windows)
 
-O projeto só compila no Windows por causa destas configurações:
 1. **SDK Path:** Mover para ```C:\Android\Sdk``` (sem espaços).
-2. **MAX_PATH:** Ativar caminhos longos no Registro do Windows (```LongPathsEnabled = 1```).
-3. **Ninja:** Substituir o ```ninja.exe``` do CMake pela versão 1.13.2.
+2. **MAX_PATH:** Ativar caminhos longos no Registro (```LongPathsEnabled = 1```).
+3. **Ninja:** Substituir ```ninja.exe``` do CMake pela versão 1.13.2.
 4. **Gradle Memory:** ```org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m```.
 5. **ProGuard:** Regras no ```app.json``` para não apagar classes nativas do ML Kit e Nitro Modules.
 6. **build.gradle:** Após ```prebuild --clean```, adicionar ```buildStagingDirectory file("C:/cxx-build")``` no bloco ```externalNativeBuild```.
 
 ## Limitações Conhecidas
 
-- **Google Play Services:** O modelo do ML Kit pode exigir internet no primeiro uso (o processamento em si é local).
-- **Sem criptografia:** O armazenamento local fica no diretório privado do app, sujeito a backups e a aparelho desbloqueado.
-- **OCR:** Câmera pode gerar imagens com distorção; a galeria tende a ter mais precisão.
+- **Google Play Services:** O modelo do ML Kit pode exigir internet no primeiro uso.
+- **Sem criptografia:** Armazenamento local fica no diretório privado do app.
+- **OCR de câmera:** Fotos com distorção são mais desafiadoras que imagens da galeria.
+- **Boleto sem texto legível:** Se o OCR não capturar o texto (ex: foto escura), os campos ficam vazios. Use o botão ```Exportar OCR``` para debugar.
