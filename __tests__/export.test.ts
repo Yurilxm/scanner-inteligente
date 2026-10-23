@@ -26,8 +26,8 @@ describe('export util', () => {
     // Verifica BOM (\uFEFF)
     expect(csv.charCodeAt(0)).toBe(0xFEFF);
     // Verifica cabecalho
-    expect(csv).toContain('ID;Tipo;Emissor;Referencia;Vencimento;Valor (R$);CNPJ;Pago;Linha Digitavel');
+    expect(csv).toContain('ID;Tipo;Emissor;Referencia;Vencimento;Valor (R$);CNPJ;Pago;Data Pagamento;Linha Digitavel');
     // Verifica formatacao da data e do valor
-    expect(csv).toContain('1;BOLETO;ENEL;05/2026;15/05/2026;1234,56;11222333000181;Nao;');
+    expect(csv).toContain('1;BOLETO;ENEL;05/2026;15/05/2026;1234,56;11222333000181;Nao;;');
   });
 });

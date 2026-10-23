@@ -5,7 +5,7 @@ import { SavedDocument } from '../db/database';
 
 export function generateCSV(documents: SavedDocument[]): string {
   const BOM = '\uFEFF';
-  const header = 'ID;Tipo;Emissor;Referencia;Vencimento;Valor (R$);CNPJ;Pago;Linha Digitavel\n';
+  const header = 'ID;Tipo;Emissor;Referencia;Vencimento;Valor (R$);CNPJ;Pago;Data Pagamento;Linha Digitavel\n';
   const rows = documents.map(doc => {
     const valor = doc.totalAmountCents ? (doc.totalAmountCents / 100).toFixed(2).replace('.', ',') : '';
     let data = doc.dueDate || '';
@@ -13,7 +13,15 @@ export function generateCSV(documents: SavedDocument[]): string {
       const [y, m, d] = data.split('-');
       data = `${d}/${m}/${y}`;
     }
-    return `${doc.id};${doc.documentType};${doc.issuer || ''};${doc.referenceMonth || ''};${data};${valor};${doc.cnpj || ''};${doc.isPaid ? 'Sim' : 'Nao'};${doc.boletoLine || ''}`;
+    
+    // Formata a data de pagamento se existir
+    let pDate = '';
+    if (doc.paymentDate && doc.paymentDate.includes('-')) {
+      const [y, m, d] = doc.paymentDate.split('-');
+      pDate = `${d}/${m}/${y}`;
+    }
+
+    return `${doc.id};${doc.documentType};${doc.issuer || ''};${doc.referenceMonth || ''};${data};${valor};${doc.cnpj || ''};${doc.isPaid ? 'Sim' : 'Nao'};${pDate};${doc.boletoLine || ''}`;
   });
   return BOM + header + rows.join('\n');
 }
@@ -48,6 +56,7 @@ export async function generatePDFFile(documents: SavedDocument[]) {
             <th style="border: 1px solid #ddd; padding: 8px;">Vencimento</th>
             <th style="border: 1px solid #ddd; padding: 8px;">Valor</th>
             <th style="border: 1px solid #ddd; padding: 8px;">Status</th>
+            <th style="border: 1px solid #ddd; padding: 8px;">Pagamento</th>
           </tr>
           ${documents.map(doc => {
             const valor = doc.totalAmountCents ? `R$ ${(doc.totalAmountCents / 100).toFixed(2).replace('.', ',')}` : '-';
@@ -55,6 +64,11 @@ export async function generatePDFFile(documents: SavedDocument[]) {
             if (data.includes('-')) {
               const [y, m, d] = data.split('-');
               data = `${d}/${m}/${y}`;
+            }
+            let pDate = '-';
+            if (doc.paymentDate && doc.paymentDate.includes('-')) {
+              const [y, m, d] = doc.paymentDate.split('-');
+              pDate = `${d}/${m}/${y}`;
             }
             return `
               <tr>
@@ -64,6 +78,7 @@ export async function generatePDFFile(documents: SavedDocument[]) {
                 <td style="border: 1px solid #ddd; padding: 8px;">${data}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">${valor}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">${doc.isPaid ? 'PAGO' : 'PENDENTE'}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${pDate}</td>
               </tr>
             `;
           }).join('')}

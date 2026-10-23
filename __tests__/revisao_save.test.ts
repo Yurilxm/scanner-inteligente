@@ -6,7 +6,7 @@ jest.mock('expo-sqlite', () => ({
     closeSync: jest.fn(),
     execSync: jest.fn(),
     getFirstSync: jest.fn(),
-    getAllSync: jest.fn(),
+    getAllSync: jest.fn(() => [{ name: 'paymentDate' }]),
     runSync: jest.fn(),
   })),
 }));

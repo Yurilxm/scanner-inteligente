@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
-import { View, Text, SectionList, StyleSheet, Pressable, Image, TextInput, Modal, ScrollView, Alert } from 'react-native';
+import { View, Text, SectionList, FlatList, StyleSheet, Pressable, Image, TextInput, Modal, ScrollView, Alert } from 'react-native';
 import { router, Stack, useFocusEffect } from 'expo-router';
 import { getDocuments, deleteDocumentById, togglePaidStatus, SavedDocument, clearAllData } from '../src/db/database';
 import { generateCSVFile, generatePDFFile, shareFile } from '../src/utils/export';
@@ -21,6 +21,7 @@ export default function BibliotecaScreen() {
   const [filter, setFilter] = useState<FilterType>('TODAS');
   const [docToDelete, setDocToDelete] = useState<SavedDocument | null>(null);
   const [csvPreview, setCsvPreview] = useState<{ visible: boolean, content: string, uri: string }>({ visible: false, content: '', uri: '' });
+  const [selectedIssuer, setSelectedIssuer] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -68,8 +69,26 @@ export default function BibliotecaScreen() {
     }
   };
 
-  const sections = useMemo(() => {
+  const issuerGroups = useMemo(() => {
     let filtered = documents;
+    if (search.trim()) {
+      const s = search.toLowerCase();
+      filtered = filtered.filter(d => (d.issuer || 'OUTROS').toLowerCase().includes(s));
+    }
+
+    const groups = filtered.reduce((acc, doc) => {
+      const key = doc.issuer || 'OUTROS';
+      if (!acc[key]) acc[key] = { count: 0, pending: 0 };
+      acc[key].count++;
+      if (doc.isPaid === 0) acc[key].pending++;
+      return acc;
+    }, {} as Record<string, { count: number, pending: number }>);
+    
+    return Object.keys(groups).sort().map(key => ({ issuer: key, ...groups[key] }));
+  }, [documents, search]);
+
+  const sections = useMemo(() => {
+    let filtered = selectedIssuer ? documents.filter(d => (d.issuer || 'OUTROS') === selectedIssuer) : documents;
     if (filter === 'PENDENTES') filtered = filtered.filter(d => d.isPaid === 0);
     if (filter === 'PAGAS') filtered = filtered.filter(d => d.isPaid === 1);
 
@@ -89,7 +108,7 @@ export default function BibliotecaScreen() {
     }, {} as Record<string, SavedDocument[]>);
 
     return Object.keys(grouped).sort().map(key => ({ title: key, data: grouped[key] }));
-  }, [documents, filter, search]);
+  }, [documents, filter, search, selectedIssuer]);
 
   const renderItem = ({ item }: { item: SavedDocument }) => (
     <Pressable
@@ -125,10 +144,10 @@ export default function BibliotecaScreen() {
       <ScannerBackground />
       <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom', 'left', 'right']}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <Pressable onPress={() => selectedIssuer ? setSelectedIssuer(null) : router.back()} style={styles.backButton}>
             <MaterialCommunityIcons name="arrow-left" size={28} color={Theme.colors.primary} />
           </Pressable>
-          <Text style={styles.headerTitle}>BIBLIOTECA</Text>
+          <Text style={styles.headerTitle}>{selectedIssuer ? selectedIssuer : 'BIBLIOTECA'}</Text>
           <View style={{ width: 28 }} />
         </View>
 
@@ -150,6 +169,7 @@ export default function BibliotecaScreen() {
           </View>
         </View>
 
+        {selectedIssuer !== null && (
         <View style={styles.filterRow}>
           {(['TODAS', 'PENDENTES', 'PAGAS'] as FilterType[]).map(f => (
             <Pressable
@@ -161,10 +181,33 @@ export default function BibliotecaScreen() {
             </Pressable>
           ))}
         </View>
+        )}
 
-        {sections.length === 0 ? (
+        {selectedIssuer === null ? (
+          // Tela 1: Lista de Emissores
+          <FlatList
+            data={issuerGroups}
+            keyExtractor={(item) => item.issuer}
+            contentContainerStyle={styles.list}
+            renderItem={({ item }) => (
+              <Pressable style={styles.issuerCard} onPress={() => setSelectedIssuer(item.issuer)}>
+                <View style={styles.issuerCardLeft}>
+                  <Text style={styles.issuerCardTitle}>{item.issuer}</Text>
+                  <Text style={styles.issuerCardSubtitle}>{item.count} contas cadastradas</Text>
+                </View>
+                <View style={styles.issuerCardRight}>
+                  {item.pending > 0 && (
+                    <View style={styles.badgePending}><Text style={styles.badgeText}>{item.pending} pendentes</Text></View>
+                  )}
+                  <MaterialCommunityIcons name="chevron-right" size={24} color={Theme.colors.primary} />
+                </View>
+              </Pressable>
+            )}
+          />
+        ) : sections.length === 0 ? (
           <Text style={styles.emptyText}>Nenhum documento encontrado.</Text>
         ) : (
+          // Tela 2: Lista de Contas do Emissor
           <SectionList
             sections={sections}
             keyExtractor={(item) => item.id}
@@ -195,6 +238,11 @@ export default function BibliotecaScreen() {
                     <Text style={styles.csvCardTitle}>{cols[2]} - {cols[1]}</Text>
                     <Text style={styles.csvCardText}>Ref: {cols[3]} | Venc: {cols[4]}</Text>
                     <Text style={styles.csvCardValue}>R$ {cols[5]}</Text>
+                    {cols[7] === 'Sim' && cols[8] && (
+                      <Text style={{ color: Theme.colors.success, fontSize: 12, marginTop: 4 }}>
+                        Pago em: {cols[8]}
+                      </Text>
+                    )}
                   </View>
                 );
               })}
@@ -244,6 +292,14 @@ const styles = StyleSheet.create({
   filterText: { color: Theme.colors.textSecondary, fontFamily: Theme.fonts.medium },
   filterTextActive: { color: Theme.colors.background },
   list: { padding: 16, paddingTop: 0 },
+
+  issuerCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Theme.colors.panel, padding: 16, borderRadius: 12, marginBottom: 12, borderWidth: 1, borderColor: Theme.colors.border },
+  issuerCardLeft: { flex: 1 },
+  issuerCardTitle: { fontSize: 18, fontFamily: Theme.fonts.bold, color: Theme.colors.primary },
+  issuerCardSubtitle: { fontSize: 13, color: Theme.colors.textSecondary, marginTop: 4 },
+  issuerCardRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  badgePending: { backgroundColor: 'rgba(255, 152, 0, 0.2)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  badgeText: { color: Theme.colors.warning, fontSize: 12, fontFamily: Theme.fonts.medium },
   sectionHeader: { paddingVertical: 8 },
   sectionTitle: { color: Theme.colors.primary, fontSize: 18, fontFamily: Theme.fonts.bold, letterSpacing: 1 },
   emptyText: { textAlign: 'center', marginTop: 40, color: Theme.colors.textSecondary, fontFamily: Theme.fonts.regular },

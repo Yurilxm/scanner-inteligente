@@ -64,15 +64,17 @@ describe('database', () => {
     const db = SQLite.openDatabaseSync('scanner.db');
     togglePaidStatus('123', 0); // Marcar como pago
     expect(db.runSync).toHaveBeenCalledWith(
-      'UPDATE documents SET isPaid = ? WHERE id = ?',
+      'UPDATE documents SET isPaid = ?, paymentDate = ? WHERE id = ?',
       1,
+      expect.any(String),
       '123'
     );
 
     togglePaidStatus('123', 1); // Desmarcar
     expect(db.runSync).toHaveBeenCalledWith(
-      'UPDATE documents SET isPaid = ? WHERE id = ?',
+      'UPDATE documents SET isPaid = ?, paymentDate = ? WHERE id = ?',
       0,
+      null,
       '123'
     );
   });

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, Pressable, ScrollView, Modal } from 'react-native';
-import { useLocalSearchParams, router, Stack } from 'expo-router';
+import { View, Text, StyleSheet, Image, Pressable, ScrollView, Modal, TextInput, BackHandler } from 'react-native';
+import { useLocalSearchParams, router } from 'expo-router';
 import { getDocumentById, deleteDocumentById, togglePaidStatus, SavedDocument } from '../src/db/database';
 import { File } from 'expo-file-system';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ScannerBackground } from '../src/components/ScannerBackground';
 import { Theme } from '../src/constants/theme';
 import { CustomModal } from '../src/components/CustomModal';
@@ -16,10 +17,23 @@ export default function DetalhesScreen() {
   const [doc, setDoc] = useState<SavedDocument | null>(null);
   const [zoomVisible, setZoomVisible] = useState(false);
   const [deleteVisible, setDeleteVisible] = useState(false);
+  const [payModalVisible, setPayModalVisible] = useState(false);
+  const [payDateInput, setPayDateInput] = useState('');
 
   useEffect(() => {
     if (id) setDoc(getDocumentById(id));
   }, [id]);
+
+  useEffect(() => {
+    const onBackPress = () => {
+      if (zoomVisible) { setZoomVisible(false); return true; }
+      if (payModalVisible) { setPayModalVisible(false); return true; }
+      if (deleteVisible) { setDeleteVisible(false); return true; }
+      return false;
+    };
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => subscription.remove();
+  }, [zoomVisible, payModalVisible, deleteVisible]);
 
   if (!doc) return null;
 
@@ -32,15 +46,27 @@ export default function DetalhesScreen() {
     router.back();
   };
 
+  const handleOpenPayModal = () => {
+    setPayDateInput(new Date().toLocaleDateString('pt-BR'));
+    setPayModalVisible(true);
+  };
+
+  const handleConfirmPayment = () => {
+    const parts = payDateInput.split('/');
+    const formattedDate = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : new Date().toISOString().split('T')[0];
+    togglePaidStatus(doc.id, doc.isPaid, formattedDate);
+    setDoc({ ...doc, isPaid: 1, paymentDate: formattedDate });
+    setPayModalVisible(false);
+  };
+
   const handleTogglePaid = () => {
     togglePaidStatus(doc.id, doc.isPaid);
-    setDoc({ ...doc, isPaid: doc.isPaid === 1 ? 0 : 1 });
+    setDoc({ ...doc, isPaid: doc.isPaid === 1 ? 0 : 1, paymentDate: null });
   };
 
   return (
     <LinearGradient colors={[Theme.colors.background, Theme.colors.backgroundGradient]} style={styles.container}>
       <ScannerBackground />
-      <Stack.Screen options={{ title: 'Detalhes', headerStyle: { backgroundColor: Theme.colors.background }, headerTintColor: Theme.colors.primary }} />
 
       <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom', 'left', 'right']}>
         <View style={styles.header}>
@@ -76,9 +102,15 @@ export default function DetalhesScreen() {
             <Text style={[styles.value, { color: doc.isPaid ? Theme.colors.success : Theme.colors.warning }]}>
               {doc.isPaid ? 'PAGO' : 'PENDENTE'}
             </Text>
+            {doc.isPaid === 1 && doc.paymentDate && (
+              <>
+                <Text style={styles.label}>Pago em</Text>
+                <Text style={styles.value}>{doc.paymentDate.split('-').reverse().join('/')}</Text>
+              </>
+            )}
           </View>
 
-          <Pressable style={styles.toggleButton} onPress={handleTogglePaid}>
+          <Pressable style={styles.toggleButton} onPress={doc.isPaid ? handleTogglePaid : handleOpenPayModal}>
             <Text style={styles.toggleText}>{doc.isPaid ? 'Desmarcar Pago' : 'Marcar como Pago'}</Text>
           </Pressable>
 
@@ -89,11 +121,36 @@ export default function DetalhesScreen() {
       </SafeAreaView>
 
       <Modal visible={zoomVisible} transparent animationType="fade">
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <View style={styles.modalContainer}>
+            <Pressable style={styles.modalClose} onPress={() => setZoomVisible(false)}>
+              <MaterialCommunityIcons name="close" size={32} color="#fff" />
+            </Pressable>
+            <ZoomableImage uri={doc.imageUri} />
+          </View>
+        </GestureHandlerRootView>
+      </Modal>
+
+      <Modal visible={payModalVisible} transparent animationType="fade">
         <View style={styles.modalContainer}>
-          <Pressable style={styles.modalClose} onPress={() => setZoomVisible(false)}>
-            <MaterialCommunityIcons name="close" size={32} color="#fff" />
-          </Pressable>
-          <ZoomableImage uri={doc.imageUri} />
+          <View style={styles.payModalBox}>
+            <Text style={styles.payModalTitle}>Data do Pagamento</Text>
+            <TextInput
+              style={styles.payInput}
+              value={payDateInput}
+              onChangeText={setPayDateInput}
+              placeholder="DD/MM/AAAA"
+              keyboardType="numeric"
+            />
+            <View style={styles.payActions}>
+              <Pressable style={styles.payCancel} onPress={() => setPayModalVisible(false)}>
+                <Text style={styles.payCancelText}>Cancelar</Text>
+              </Pressable>
+              <Pressable style={styles.payConfirm} onPress={handleConfirmPayment}>
+                <Text style={styles.payConfirmText}>Confirmar</Text>
+              </Pressable>
+            </View>
+          </View>
         </View>
       </Modal>
 
@@ -128,5 +185,12 @@ const styles = StyleSheet.create({
   deleteText: { fontFamily: Theme.fonts.medium, color: Theme.colors.danger, fontSize: 16 },
   modalContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center', paddingTop: 50, paddingBottom: 50 },
   modalClose: { position: 'absolute', top: 40, right: 20, zIndex: 10 },
-  fullImage: { width: '100%', height: '100%' },
+  payModalBox: { backgroundColor: Theme.colors.panel, padding: 20, borderRadius: 12, width: '80%', borderWidth: 1, borderColor: Theme.colors.border },
+  payModalTitle: { fontSize: 18, fontFamily: Theme.fonts.bold, color: Theme.colors.primary, marginBottom: 16, textAlign: 'center' },
+  payInput: { backgroundColor: Theme.colors.background, color: Theme.colors.text, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: Theme.colors.border, fontFamily: Theme.fonts.regular, marginBottom: 16, textAlign: 'center' },
+  payActions: { flexDirection: 'row', gap: 12 },
+  payCancel: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: Theme.colors.border },
+  payCancelText: { color: Theme.colors.textSecondary, fontFamily: Theme.fonts.bold },
+  payConfirm: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', backgroundColor: Theme.colors.primary },
+  payConfirmText: { color: Theme.colors.background, fontFamily: Theme.fonts.bold },
 });

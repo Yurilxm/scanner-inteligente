@@ -15,6 +15,7 @@ export function changeProfile(profile: string) {
 }
 
 export function initDatabase() {
+  // 1. Cria a tabela se não existir (com todas as colunas)
   db.execSync(`
     CREATE TABLE IF NOT EXISTS documents (
       id TEXT PRIMARY KEY NOT NULL,
@@ -29,15 +30,49 @@ export function initDatabase() {
       boletoLine TEXT,
       ocrText TEXT,
       isPaid INTEGER DEFAULT 0,
+      paymentDate TEXT,
       createdAt TEXT NOT NULL
     );
   `);
 
-  // Migracao simples para quem ja tinha a tabela antiga (ignora erro se a coluna ja existir)
-  try { db.execSync("ALTER TABLE documents ADD COLUMN issuer TEXT;"); } catch {}
-  try { db.execSync("ALTER TABLE documents ADD COLUMN referenceMonth TEXT;"); } catch {}
-  try { db.execSync("ALTER TABLE documents ADD COLUMN dueDate TEXT;"); } catch {}
-  try { db.execSync("ALTER TABLE documents ADD COLUMN isPaid INTEGER DEFAULT 0;"); } catch {}
+  // 2. Tenta ALTER TABLE de forma defensiva (não depende do PRAGMA)
+  try {
+    db.execSync('ALTER TABLE documents ADD COLUMN paymentDate TEXT;');
+    console.log('✅ Coluna paymentDate adicionada (ou já existia).');
+  } catch (e: any) {
+    // Se falhar com "duplicate column name", ignora (já existe)
+    const msg = String(e);
+    if (msg.includes('duplicate column name') || msg.includes('already exists')) {
+      console.log('✅ Coluna paymentDate já existe.');
+    } else {
+      // Se falhar por outro motivo, recria a tabela
+      console.warn('⚠️ Recriando tabela documentos para garantir integridade...', msg);
+      try {
+        db.execSync('DROP TABLE IF EXISTS documents');
+        db.execSync(`
+          CREATE TABLE documents (
+            id TEXT PRIMARY KEY NOT NULL,
+            imageUri TEXT NOT NULL,
+            documentType TEXT NOT NULL,
+            issuer TEXT,
+            referenceMonth TEXT,
+            cnpj TEXT,
+            cpf TEXT,
+            totalAmountCents INTEGER,
+            dueDate TEXT,
+            boletoLine TEXT,
+            ocrText TEXT,
+            isPaid INTEGER DEFAULT 0,
+            paymentDate TEXT,
+            createdAt TEXT NOT NULL
+          );
+        `);
+        console.log('✅ Tabela recriada com sucesso.');
+      } catch (recreateError) {
+        console.error('❌ Erro fatal ao recriar tabela:', recreateError);
+      }
+    }
+  }
 }
 
 export type SavedDocument = ExtractedFields & {
@@ -45,6 +80,7 @@ export type SavedDocument = ExtractedFields & {
   imageUri: string;
   ocrText: string;
   isPaid: number;
+  paymentDate?: string | null;
   createdAt: string;
 };
 
@@ -61,7 +97,7 @@ export function saveDocument(
   db.runSync(
     `INSERT INTO documents (id, imageUri, documentType, issuer, referenceMonth, cnpj, cpf, totalAmountCents, dueDate, boletoLine, ocrText, isPaid, paymentDate, createdAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, imageUri, fields.documentType, fields.issuer, fields.referenceMonth, fields.cnpj, fields.cpf, fields.totalAmountCents, fields.dueDate, fields.boletoLine, ocrText, isPaid, paymentDate || null, createdAt
+    id, imageUri, fields.documentType || null, fields.issuer || null, fields.referenceMonth || null, fields.cnpj || null, fields.cpf || null, fields.totalAmountCents || null, fields.dueDate || null, fields.boletoLine || null, ocrText || null, isPaid, paymentDate || null, createdAt
   );
   return id;
 }
@@ -75,9 +111,10 @@ export function getDocuments(): SavedDocument[] {
   return db.getAllSync<SavedDocument>('SELECT * FROM documents ORDER BY createdAt DESC');
 }
 
-export function togglePaidStatus(id: string, currentStatus: number): void {
+export function togglePaidStatus(id: string, currentStatus: number, paymentDate?: string): void {
   const newStatus = currentStatus === 1 ? 0 : 1;
-  db.runSync('UPDATE documents SET isPaid = ? WHERE id = ?', newStatus, id);
+  const dateToSave = newStatus === 1 ? (paymentDate || new Date().toISOString().split('T')[0]) : null;
+  db.runSync('UPDATE documents SET isPaid = ?, paymentDate = ? WHERE id = ?', newStatus, dateToSave, id);
 }
 
 export function deleteDocumentById(id: string): void {

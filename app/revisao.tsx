@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, ActivityIndicator, Image, Pressable, Alert, KeyboardAvoidingView, Platform, ScrollView, Modal } from 'react-native';
+import { View, Text, TextInput, StyleSheet, ActivityIndicator, Image, Pressable, Alert, KeyboardAvoidingView, Platform, ScrollView, Modal, BackHandler } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { ZoomableImage } from '../src/components/ZoomableImage';
 import { router } from 'expo-router';
 import { File } from 'expo-file-system';
 import { saveDocument } from '../src/db/database';
@@ -16,6 +18,14 @@ import { CustomModal } from '../src/components/CustomModal';
 import { requestNotificationPermissions, scheduleDueDateReminder } from '../src/utils/notifications';
 
 export default function RevisaoScreen() {
+
+  const formatDateInput = (text: string) => {
+    const cleaned = text.replace(/\D/g, '');
+    if (cleaned.length <= 2) return cleaned;
+    if (cleaned.length <= 4) return `${cleaned.slice(0, 2)}/${cleaned.slice(2)}`;
+    return `${cleaned.slice(0, 2)}/${cleaned.slice(2, 4)}/${cleaned.slice(4, 8)}`;
+  };
+
   const { imageUri, ocrText, setOcrText, fields, setFields, reset } = useDocument();
   const [isLoading, setIsLoading] = useState(true);
   const [isImageVisible, setIsImageVisible] = useState(false);
@@ -29,6 +39,18 @@ export default function RevisaoScreen() {
   const [editDate, setEditDate] = useState('');
   const [editValue, setEditValue] = useState('');
   const [editPaymentDate, setEditPaymentDate] = useState('');
+
+  useEffect(() => {
+    const onBackPress = () => {
+      if (isImageVisible) {
+        setIsImageVisible(false);
+        return true;
+      }
+      return false;
+    };
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => subscription.remove();
+  }, [isImageVisible]);
 
   useEffect(() => {
     requestNotificationPermissions();
@@ -85,7 +107,7 @@ export default function RevisaoScreen() {
   const onCancel = async () => {
     try {
       // Apaga o arquivo fisico antes de sair
-      const file = new File(imageUri);
+      const file = new File(imageUri!);
       if (file.exists) file.delete();
     } catch {
       // Ignora erro silencioso se o arquivo ja sumiu
@@ -130,11 +152,18 @@ export default function RevisaoScreen() {
 
     try {
       let paymentDateIso = null;
-      if (editPaymentDate) {
+      if (editPaymentDate && editPaymentDate.trim() !== '') {
         const parts = editPaymentDate.split('/');
-        if (parts.length === 3) paymentDateIso = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        if (parts.length === 3) {
+          // Garante que tenha dois dígitos (ex: 8 vira 08)
+          const day = parts[0].padStart(2, '0');
+          const month = parts[1].padStart(2, '0');
+          const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+          paymentDateIso = `${year}-${month}-${day}`;
+        }
       }
 
+      console.log('Salvando com paymentDateIso:', paymentDateIso);
       const savedId = saveDocument(imageUri!, ocrText || '', finalFields, paymentDateIso);
       
       try {
@@ -145,10 +174,10 @@ export default function RevisaoScreen() {
         console.warn("Erro ao agendar notificacao", e);
       }
 
-      reset();
-      setIsSuccessVisible(true);
-    } catch {
-      Alert.alert('Erro', 'Nao foi possivel salvar o documento.');
+      setIsSuccessVisible(true); // NÃO chamar reset() aqui!
+    } catch (e) {
+      console.error('Erro detalhado ao salvar:', e);
+      Alert.alert('Erro ao salvar', String(e));
     }
   };
 
@@ -157,20 +186,22 @@ export default function RevisaoScreen() {
       <ScannerBackground />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Pressable onPress={() => setIsImageVisible(true)} style={styles.imageContainer}>
-          <Image source={{ uri: imageUri }} style={styles.image} resizeMode="contain" />
+          <Image source={{ uri: imageUri! }} style={styles.image} resizeMode="contain" />
         </Pressable>
 
         <Modal visible={isImageVisible} transparent={true} animationType="fade">
-          <View style={styles.modalContainer}>
-            <Pressable style={styles.modalClose} onPress={() => setIsImageVisible(false)}>
-              <MaterialCommunityIcons name="close" size={32} color="#fff" />
-            </Pressable>
-            <Image source={{ uri: imageUri }} style={styles.fullImage} resizeMode="contain" />
-          </View>
+          <GestureHandlerRootView style={{ flex: 1 }}>
+            <View style={styles.modalContainer}>
+              <Pressable style={styles.modalClose} onPress={() => setIsImageVisible(false)}>
+                <MaterialCommunityIcons name="close" size={32} color="#fff" />
+              </Pressable>
+              {imageUri && <ZoomableImage uri={imageUri} />}
+            </View>
+          </GestureHandlerRootView>
         </Modal>
 
         {isLoading ? (
@@ -204,7 +235,7 @@ export default function RevisaoScreen() {
             <TextInput style={styles.input} value={editValue} onChangeText={setEditValue} keyboardType="numeric" placeholder="0,00" />
 
             <Text style={styles.label}>Data de Pagamento (Opcional)</Text>
-            <TextInput style={styles.input} value={editPaymentDate} onChangeText={setEditPaymentDate} placeholder="DD/MM/AAAA (Deixe vazio se não pago)" />
+            <TextInput style={styles.input} value={editPaymentDate} onChangeText={(t) => setEditPaymentDate(formatDateInput(t))} placeholder="DD/MM/AAAA" keyboardType="numeric" />
 
             <Text style={styles.sectionTitle}>Texto Completo (OCR)</Text>
             <TextInput
@@ -234,6 +265,10 @@ export default function RevisaoScreen() {
         message="Documento salvo na biblioteca."
         confirmText="Continuar"
         onConfirm={() => {
+          setIsSuccessVisible(false);
+          router.replace('/biblioteca');
+        }}
+        onCancel={() => {
           setIsSuccessVisible(false);
           router.replace('/biblioteca');
         }}

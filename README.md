@@ -1,96 +1,75 @@
 # Control Radar
 
-Aplicativo mobile para digitalizar contas e boletos, extrair texto por OCR **no próprio aparelho** e organizar os dados localmente. Privacidade inegociável: nenhum documento sai do dispositivo.
+O **Control Radar** é um aplicativo mobile de finanças pessoais focado em **privacidade absoluta**. Ele permite digitalizar contas de consumo (água, luz, internet) e boletos, extrair os dados automaticamente usando Inteligência Artificial (OCR) e organizar os vencimentos e pagamentos.
 
-> **Status:** MVP completo (Lote 3). Captura, OCR, extração, revisão, biblioteca, exportação, notificações e automação de planilha implementados e testados.
+> **Filosofia do Projeto:** Local-First. Nenhum dado sensível sai do dispositivo do usuário. Não há servidores, não há nuvem, não há rastreamento. Tudo roda offline.
 
-## Funcionalidades
+## Funcionalidades Principais
 
-- [x] Captura pela câmera (scanner ML Kit) e importação da galeria.
-- [x] OCR local com extração de texto integral e redimensionamento de imagem.
-- [x] Extração inteligente de campos (emissor, referência, vencimento, valor, CNPJ) com tratamento de falsos positivos.
-- [x] Validação estrutural de linha digitável (Módulos 10 e 11).
-- [x] Tela de revisão com edição manual e **zoom na imagem original (pinça e toque duplo)**.
-- [x] Armazenamento local (SQLite) com status de pagamento e **Data de Pagamento**.
-- [x] Biblioteca com busca, filtros, agrupamento por emissor e tela de detalhes.
-- [x] Exportação para PDF (visualização nativa) e CSV (preview em modal + compartilhamento).
-- [x] **Notificações locais** 5 dias antes do vencimento (às 09h).
-- [x] **Automação de planilha Excel** via script Python (lê o CSV e atualiza a planilha da família).
-- [x] UI/UX "Radar/Scanner" com tema escuro, animações e ícone customizado.
+- **Multi-Perfil:** Bancos de dados totalmente separados para diferentes usuários no mesmo aparelho (ex: Perfil "Yuri" e Perfil "Mãe").
+- **Scanner Inteligente (OCR):** Captura via câmera ou galeria, com extração de texto usando ML Kit (Google) no próprio aparelho.
+- **Extração de Dados:** Identifica automaticamente o emissor (Enel, Prolagos), valor total, data de vencimento, referência e CNPJ.
+- **Gestão de Contas:** Controle de status (Pago/Pendente) e registro manual da data de pagamento.
+- **Notificações Locais:** Lembretes agendados automaticamente 5 dias antes do vencimento.
+- **Exportação Inteligente:** Geração de relatórios em PDF (visualização nativa) e CSV (padrão Excel brasileiro).
+- **Automação Desktop:** Script em Python que lê o CSV exportado e atualiza automaticamente uma planilha financeira no PC.
 
-## Stack
+## Stack Tecnológica
 
-- **Expo SDK 58** (React Native 0.88, New Architecture + Nitro Modules)
-- **TypeScript** em modo strict
-- **Expo Router** (navegação por arquivos)
-- **expo-document-scanner** (VisionKit no iOS, ML Kit no Android)
-- **@infinitered/react-native-mlkit-text-recognition** (OCR ML Kit v2)
-- **expo-sqlite** (banco de dados local)
-- **expo-notifications** (lembretes de vencimento)
-- **react-native-gesture-handler + reanimated** (zoom e animações)
-- **Jest + jest-expo** (**30 testes automatizados**)
-- **ESLint 9 + eslint-config-expo**
+- **Core:** React Native (Expo SDK 58) + TypeScript (Strict Mode).
+- **Navegação:** Expo Router (File-based routing).
+- **OCR e Câmera:** ```expo-document-scanner``` e ```@infinitered/react-native-mlkit-text-recognition```.
+- **Banco de Dados:** ```expo-sqlite``` (Armazenamento local).
+- **UI/UX:** Tema escuro customizado com ```expo-linear-gradient```, ```react-native-reanimated``` e ```react-native-svg```.
+- **Exportação:** ```expo-print``` e ```expo-sharing```.
+- **Testes:** Jest e Testing Library (33 testes automatizados).
 
-## Requisitos de ambiente
+## Arquitetura e Decisões Técnicas
 
-Testado em **Windows 11** com os itens abaixo.
+- **Banco de Dados Local (SQLite):** Em vez de usar um backend na nuvem, o app usa SQLite. Para permitir múltiplos usuários (perfis), a aplicação altera o caminho do arquivo de banco de dados em tempo de execução (ex: ```scanner_yuri.db``` e ```scanner_mae.db```). Isso garante isolamento total e privacidade.
+- **Processamento de Imagem:** As imagens são redimensionadas para 1080px antes do OCR para respeitar o limite do ML Kit e garantir performance.
+- **Automação Python:** O script na pasta ```Controle_Excel``` usa ```openpyxl``` para ler o CSV exportado, evitar duplicatas (comparando IDs) e atualizar a planilha do usuário com backup automático.
 
-| Ferramenta | Versão testada |
-|---|---|
-| Node.js | 24.12.0 |
-| npm | 11.6.2 |
-| JDK (JBR do Android Studio) | 25.0.3 |
-| Android Studio | versão estável de out/2026 |
-| Android SDK | compileSdk 37, targetSdk 36, minSdk 24 |
-| NDK | 27.1.12297006 |
-| CMake | 3.22.1 |
-| Ninja | **1.13.2** |
-| AVD | Pixel_7_API_35 com imagem Google Play |
+## Como Instalar e Rodar
 
-**Não use o Expo Go**: as bibliotecas de scanner e OCR exigem **Development Build**.
+### Pré-requisitos
+- Node.js (v24+)
+- Java JDK 17+ (JBR do Android Studio recomendado)
+- Android SDK (API 34+)
+- Emulador ou Celular Físico com modo Desenvolvedor ativo.
 
-## Instalação e Execução
-
-```powershell
-git clone <url> control-radar
-cd control-radar
-npm install
-```
-
-Para rodar no emulador ou celular físico:
-```powershell
-npx expo run:android --variant release
-```
-
-## Comandos de teste e qualidade
-
-```powershell
-npx tsc --noEmit
-npx expo lint
-npm test
-```
-
-## Automação de Planilha (Excel)
-
-O projeto inclui uma pasta Controle_Excel com um script Python para atualizar a planilha financeira da família.
-
-**Como usar:**
-1. Exporte o CSV pelo aplicativo (Biblioteca -> CSV -> Compartilhar).
-2. Salve o arquivo CSV dentro da pasta Controle_Excel.
-3. Dê **dois cliques** no arquivo Atualizar_Planilha.bat.
-4. O script irá criar (ou atualizar) o arquivo Planilha_Contas.xlsx, fazendo backup automático antes de salvar.
+### Passo a Passo
+1. Clone o repositório:
+   ```powershell
+   git clone https://github.com/Yurilxm/scanner-inteligente.git
+   cd scanner-inteligente
+   ```
+2. Instale as dependências:
+   ```powershell
+   npm install
+   ```
+3. Rode os testes para garantir a integridade:
+   ```powershell
+   npx tsc --noEmit
+   npm test
+   ```
+4. Gere o APK de Produção (Build):
+   ```powershell
+   npx expo run:android --variant release
+   ```
+   *O APK final estará em ```android/app/build/outputs/apk/release/app-release.apk```.*
 
 ## Workarounds Críticos (Windows)
 
-O projeto só compila no Windows por causa destas configurações:
-1. **SDK Path:** Mover para C:/Android/Sdk para evitar espaços no caminho.
-2. **MAX_PATH:** Habilitar caminhos longos no Registro do Windows (LongPathsEnabled = 1).
-3. **Ninja:** Substituir o ninja.exe do CMake pela versão 1.13.2.
-4. **Gradle Memory:** android/gradle.properties alterado para org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m.
-5. **ProGuard/R8:** Regras no app.json para não apagar classes nativas (com.margelo.nitro e com.google.mlkit).
-6. **build.gradle:** Após npx expo prebuild --clean, adicionar buildStagingDirectory file(C:/cxx-build) dentro do bloco externalNativeBuild.
+O ambiente Windows exige configurações específicas para compilar projetos React Native com módulos nativos (C++ e Gradle):
+1. **Ninja 1.13.2:** Substituir o ```ninja.exe``` padrão do CMake para evitar o erro de "Long Paths".
+2. **MAX_PATH:** Ativar caminhos longos no registro do Windows (```HKLM\\SYSTEM\\CurrentControlSet\\Control\\FileSystem\\LongPathsEnabled = 1```).
+3. **ProGuard:** Regras no ```app.json``` para evitar que o R8 apague as classes nativas do ML Kit e do Nitro Modules.
+4. **build.gradle:** Após rodar ```npx expo prebuild --clean```, é obrigatório adicionar ```buildStagingDirectory file("C:/cxx-build")``` dentro do bloco ```externalNativeBuild```.
 
-## Limitações conhecidas
+## Automação da Planilha (Excel)
 
-- **Google Play Services:** o modelo do ML Kit pode exigir internet no primeiro uso (o processamento em si é local).
-- **Sem criptografia:** o armazenamento local fica no diretório privado do app, sujeito a backups e a aparelho desbloqueado ou com root.
+1. Exporte o relatório **CSV** pelo aplicativo.
+2. Mova o arquivo para a pasta ```Controle_Excel```.
+3. Dê dois cliques no arquivo ```Atualizar_Planilha.bat```.
+4. O script criará/atualizará o arquivo ```Planilha_Contas.xlsx``` automaticamente (criando backups antes de cada alteração).
