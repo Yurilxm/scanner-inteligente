@@ -1,7 +1,7 @@
 import { extractFields } from '../src/utils/extractor';
 
 describe('extractor', () => {
-  it('extrai campos de um Boleto com Emissor e Referencia', () => {
+  it('extrai campos de um Boleto com Emissor e Referencia', async () => {
     const ocrText = `
       ENEL DISTRIBUICAO SAO PAULO
       Referencia: 10/2026
@@ -12,7 +12,7 @@ describe('extractor', () => {
       Linha Digitavel: 12345.67890 12345.678901 12345.678901 1 12345678901234
     `;
 
-    const fields = extractFields(ocrText);
+    const fields = await extractFields(ocrText);
 
     expect(fields.documentType).toBe('BOLETO');
     expect(fields.issuer).toBe('ENEL');
@@ -22,14 +22,14 @@ describe('extractor', () => {
     expect(fields.totalAmountCents).toBe(125000);
   });
 
-  it('identifica PIX e extrai valor total', () => {
+  it('identifica PIX e extrai valor total', async () => {
     const ocrText = `
       COMPROVANTE DE PIX
       Valor: R$ 50,00
       Data: 01/10/2026
     `;
 
-    const fields = extractFields(ocrText);
+    const fields = await extractFields(ocrText);
 
     expect(fields.documentType).toBe('PIX');
     expect(fields.totalAmountCents).toBe(5000);

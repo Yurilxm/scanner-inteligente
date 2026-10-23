@@ -33,6 +33,7 @@ export async function requestNotificationPermissions() {
 
 export async function scheduleDueDateReminder(docId: string, issuer: string, dueDate: string) {
   if (!dueDate) return;
+  if (getSetting('notifications_enabled', 'true') !== 'true') return;
   const [year, month, day] = dueDate.split('-').map(Number);
   const due = new Date(year, month - 1, day);
   

@@ -4,7 +4,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ZoomableImage } from '../src/components/ZoomableImage';
 import { router } from 'expo-router';
 import { File } from 'expo-file-system';
-import { saveDocument, getLearnedCategories, saveLearnedCategory } from '../src/db/database';
+import { saveDocument, getLearnedCategories, saveLearnedCategory, getLearnedPatternForCategory } from '../src/db/database';
 import { useDocument } from '../src/context/DocumentContext';
 import { extractDocumentData, extractRawOcrData } from '../src/utils/ocr';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -74,7 +74,7 @@ export default function RevisaoScreen() {
         if (isMounted) {
           setOcrText(text);
           // 2. Extracao usando os blocos (se disponiveis)
-          const extracted = extractFields(rawData, getLearnedCategories());
+          const extracted = await extractFields(rawData, getLearnedCategories());
           setFields(extracted);
 
           // 3. Preenche estado local para edicao
@@ -109,9 +109,20 @@ export default function RevisaoScreen() {
 
   const handleOpenReclassify = () => {
     setReclassifyCategory(editIssuer || '');
-    // Tenta sugerir uma palavra baseada no OCR
-    const words = (ocrText || '').split(/\s+/).filter(w => w.length > 4 && /^[A-Za-z]+$/.test(w));
-    setReclassifyKeyword(words.length > 0 ? words[0].toUpperCase() : '');
+    // Se já existe uma palavra salva para essa categoria, usa ela
+    const existing = getLearnedPatternForCategory(editIssuer || '');
+    if (existing) {
+      setReclassifyKeyword(existing.toUpperCase());
+    } else {
+      // Senão, tenta sugerir pelo Beneficiário
+      const benMatch = (ocrText || '').match(/(?:BENEFICIARIO|CEDENTE)[^A-Z0-9]+([A-Z0-9\s]{4,40})/i);
+      if (benMatch) {
+        setReclassifyKeyword(benMatch[1].trim().split(' ')[0].toUpperCase());
+      } else {
+        const words = (ocrText || '').split(/\s+/).filter(w => w.length > 4 && /^[A-Za-z]+$/.test(w));
+        setReclassifyKeyword(words.length > 0 ? words[0].toUpperCase() : '');
+      }
+    }
     setReclassifyVisible(true);
   };
 
@@ -224,8 +235,11 @@ export default function RevisaoScreen() {
 
         {isLoading ? (
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="large" color="#0a7ea4" />
-            <Text style={styles.loadingText}>Processando OCR e extraindo campos...</Text>
+            <ActivityIndicator size="large" color={Theme.colors.primary} />
+            <Text style={styles.loadingText}>Processando OCR...</Text>
+            <Text style={[styles.loadingText, { fontSize: 12, marginTop: 8 }]}>
+              Consultando dados do emissor...
+            </Text>
           </View>
         ) : (
           <View style={styles.formContainer}>

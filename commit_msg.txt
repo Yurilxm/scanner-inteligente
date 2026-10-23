@@ -1,8 +1,9 @@
-test: adiciona testes de estresse de QA (54 testes no total)
+feat: extracao posicional, consulta CNPJ paralela e cache
 
-- Testes de migracao e criacao das tabelas settings e learned_categories
-- Testes de fallback do getSetting quando a tabela nao existe
-- Testes de normalizacao de palavras-chave (sem acento, minusculo)
-- Testes de prioridade do aprendizado sobre as regras fixas
-- Testes de configuracao de notificacao (once vs daily, dias antes)
-- Corrigido database.ts para criar todas as tabelas no initDatabase
+- Implementada extracao posicional (usa blocos X/Y do ML Kit como fallback)
+- Consulta de CNPJ em paralelo (BrasilAPI + OpenCNPJ + PublicaCNPJ, timeout 4s)
+- Cache de CNPJ no SQLite (validade de 30 dias)
+- CNAE mapeado para Academias, Saude e Juridico
+- Fallback de emissor extrai nome do beneficiario para contas desconhecidas
+- Corrigido NETMAXXI (com dois X e um I)
+- 63 testes automatizados passando

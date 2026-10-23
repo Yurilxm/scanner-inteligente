@@ -35,6 +35,18 @@ export function initDatabase() {
     );
   `);
 
+  // Tabela de cache de CNPJ (para consultas offline)
+  db.execSync(`
+    CREATE TABLE IF NOT EXISTS cnpj_cache (
+      cnpj TEXT PRIMARY KEY NOT NULL,
+      razao_social TEXT,
+      cnae_fiscal TEXT,
+      cnae_descricao TEXT,
+      categoria TEXT,
+      fetchedAt TEXT NOT NULL
+    );
+  `);
+
   // Tabela de configurações
   db.execSync(`
     CREATE TABLE IF NOT EXISTS settings (
@@ -137,4 +149,41 @@ export function getLearnedCategories(): { pattern: string; category: string }[] 
 
 export function updateDocumentIssuer(id: string, newIssuer: string): void {
   db.runSync('UPDATE documents SET issuer = ? WHERE id = ?', newIssuer, id);
+}
+
+
+export function getLearnedPatternForCategory(category: string): string | null {
+  try {
+    const row = db.getFirstSync<{ pattern: string }>(
+      'SELECT pattern FROM learned_categories WHERE category = ? ORDER BY createdAt DESC LIMIT 1',
+      category
+    );
+    return row ? row.pattern : null;
+  } catch {
+    return null;
+  }
+}
+
+
+export function getCachedCNPJ(cnpj: string): { razao_social: string; cnae_fiscal: string; cnae_descricao: string; categoria: string } | null {
+  try {
+    const row = db.getFirstSync<any>('SELECT * FROM cnpj_cache WHERE cnpj = ?', cnpj.replace(/\D/g, ''));
+    if (!row) return null;
+    // Cache válido por 30 dias
+    const fetched = new Date(row.fetchedAt).getTime();
+    const daysOld = (Date.now() - fetched) / (1000 * 60 * 60 * 24);
+    if (daysOld > 30) return null;
+    return { razao_social: row.razao_social, cnae_fiscal: row.cnae_fiscal, cnae_descricao: row.cnae_descricao, categoria: row.categoria };
+  } catch {
+    return null;
+  }
+}
+
+export function saveCachedCNPJ(cnpj: string, razao_social: string, cnae_fiscal: string, cnae_descricao: string, categoria: string): void {
+  try {
+    db.runSync(
+      'INSERT OR REPLACE INTO cnpj_cache (cnpj, razao_social, cnae_fiscal, cnae_descricao, categoria, fetchedAt) VALUES (?, ?, ?, ?, ?, ?)',
+      cnpj.replace(/\D/g, ''), razao_social, cnae_fiscal, cnae_descricao, categoria, new Date().toISOString()
+    );
+  } catch {}
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Switch } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,16 +7,19 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ScannerBackground } from '../src/components/ScannerBackground';
 import { Theme } from '../src/constants/theme';
 import { getSetting, setSetting } from '../src/db/database';
+import { CustomModal } from '../src/components/CustomModal';
 
 export default function ConfiguracoesScreen() {
   const [daysBefore, setDaysBefore] = useState(() => parseInt(getSetting('notification_days_before', '5'), 10) || 5);
   const [frequency, setFrequency] = useState(() => getSetting('notification_frequency', 'once'));
+  const [notificationsEnabled, setNotificationsEnabled] = useState(() => getSetting('notifications_enabled', 'true') === 'true');
+  const [showSuccess, setShowSuccess] = useState(false);
 
   const handleSave = () => {
     setSetting('notification_days_before', String(daysBefore));
     setSetting('notification_frequency', frequency);
-    Alert.alert('Salvo!', 'Suas preferências de notificação foram atualizadas.');
-    router.back();
+    setSetting('notifications_enabled', notificationsEnabled ? 'true' : 'false');
+    setShowSuccess(true);
   };
 
   return (
@@ -27,12 +30,22 @@ export default function ConfiguracoesScreen() {
           <Pressable onPress={() => router.back()} style={styles.backButton}>
             <MaterialCommunityIcons name="arrow-left" size={28} color={Theme.colors.primary} />
           </Pressable>
-          <Text style={styles.headerTitle}>CONFIGURAÇÕES</Text>
+          <Text style={styles.headerTitle}>CONFIGURACOES</Text>
           <View style={{ width: 28 }} />
         </View>
 
         <ScrollView contentContainerStyle={styles.content}>
-          <Text style={styles.sectionTitle}>Notificações de Vencimento</Text>
+          <View style={styles.toggleRow}>
+            <Text style={styles.toggleLabel}>Ativar Notificacoes</Text>
+            <Switch
+              value={notificationsEnabled}
+              onValueChange={setNotificationsEnabled}
+              trackColor={{ false: '#333', true: Theme.colors.primary }}
+              thumbColor={notificationsEnabled ? '#fff' : '#888'}
+            />
+          </View>
+
+          <Text style={styles.sectionTitle}>Notificacoes de Vencimento</Text>
           <Text style={styles.helpText}>Escolha quando quer ser avisado antes da conta vencer.</Text>
 
           <Text style={styles.label}>Avisar quantos dias antes?</Text>
@@ -48,13 +61,13 @@ export default function ConfiguracoesScreen() {
             </Pressable>
           ))}
 
-          <Text style={[styles.label, { marginTop: 24 }]}>Com que frequência?</Text>
+          <Text style={[styles.label, { marginTop: 24 }]}>Com que frequencia?</Text>
           <Pressable
             style={[styles.option, frequency === 'once' && styles.optionActive]}
             onPress={() => setFrequency('once')}
           >
             <Text style={[styles.optionText, frequency === 'once' && styles.optionTextActive]}>
-              Uma vez só (no dia escolhido)
+              Uma vez so (no dia escolhido)
             </Text>
           </Pressable>
           <Pressable
@@ -62,15 +75,24 @@ export default function ConfiguracoesScreen() {
             onPress={() => setFrequency('daily')}
           >
             <Text style={[styles.optionText, frequency === 'daily' && styles.optionTextActive]}>
-              Todo dia nos últimos {daysBefore} dias
+              Todo dia nos ultimos {daysBefore} dias
             </Text>
           </Pressable>
 
           <Pressable style={styles.saveButton} onPress={handleSave}>
-            <Text style={styles.saveText}>SALVAR PREFERÊNCIAS</Text>
+            <Text style={styles.saveText}>SALVAR PREFERENCIAS</Text>
           </Pressable>
         </ScrollView>
       </SafeAreaView>
+
+      <CustomModal
+        visible={showSuccess}
+        title="Salvo!"
+        message="Suas preferencias de notificacao foram atualizadas."
+        confirmText="OK"
+        onConfirm={() => { setShowSuccess(false); router.back(); }}
+        onCancel={() => { setShowSuccess(false); router.back(); }}
+      />
     </LinearGradient>
   );
 }
@@ -81,6 +103,8 @@ const styles = StyleSheet.create({
   backButton: { padding: 4 },
   headerTitle: { fontSize: 20, fontFamily: Theme.fonts.bold, color: Theme.colors.primary, letterSpacing: 1 },
   content: { padding: 16 },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Theme.colors.panel, padding: 16, borderRadius: 12, marginBottom: 24, borderWidth: 1, borderColor: Theme.colors.border },
+  toggleLabel: { fontSize: 16, fontFamily: Theme.fonts.bold, color: Theme.colors.text },
   sectionTitle: { fontSize: 18, fontFamily: Theme.fonts.bold, color: Theme.colors.primary, marginBottom: 8 },
   helpText: { fontSize: 13, fontFamily: Theme.fonts.regular, color: Theme.colors.textSecondary, marginBottom: 24 },
   label: { fontSize: 14, fontFamily: Theme.fonts.medium, color: Theme.colors.text, marginBottom: 12 },

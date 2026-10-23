@@ -1,7 +1,7 @@
 import { extractFields } from '../src/utils/extractor';
 
 describe('Extrator V2 (Geometria e Prioridade)', () => {
-  it('deve ler o Valor Total correto da Prolagos ignorando a tabela e a data errada', () => {
+  it('deve ler o Valor Total correto da Prolagos ignorando a tabela e a data errada', async () => {
     const mockOcrResult = {
       text: 'PROLAGOS TOTAL A PAGAR R$ 462.06 VENCIMENTO 05/11/2026 REFERÊNCIA 10/2026 178,70 11/08/2026',
       blocks: [
@@ -53,7 +53,7 @@ describe('Extrator V2 (Geometria e Prioridade)', () => {
       ]
     };
 
-    const fields = extractFields(mockOcrResult as any);
+    const fields = await extractFields(mockOcrResult as any);
 
     expect(fields.documentType).toBe('BOLETO');
     expect(fields.totalAmountCents).toBe(46206);
@@ -61,7 +61,7 @@ describe('Extrator V2 (Geometria e Prioridade)', () => {
     expect(fields.referenceMonth).toBe('10/2026');
   });
 
-  it('deve parsear corretamente valores com milhar', () => {
+  it('deve parsear corretamente valores com milhar', async () => {
     const mockOcrResult = {
       text: 'VALOR TOTAL R$ 20.000,00',
       blocks: [
@@ -78,7 +78,7 @@ describe('Extrator V2 (Geometria e Prioridade)', () => {
       ]
     };
     
-    const fields = extractFields(mockOcrResult as any);
+    const fields = await extractFields(mockOcrResult as any);
     expect(fields.totalAmountCents).toBe(2000000);
   });
 });

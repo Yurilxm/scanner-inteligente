@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, Pressable, ScrollView, Modal, TextInput, BackHandler } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { getDocumentById, deleteDocumentById, togglePaidStatus, saveLearnedCategory, updateDocumentIssuer, SavedDocument } from '../src/db/database';
+import { getDocumentById, deleteDocumentById, togglePaidStatus, saveLearnedCategory, updateDocumentIssuer, getLearnedPatternForCategory, SavedDocument } from '../src/db/database';
 import { File } from 'expo-file-system';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -51,9 +51,18 @@ export default function DetalhesScreen() {
 
   const handleOpenReclassify = () => {
     setReclassifyCategory(doc.issuer || '');
-    // Sugere uma palavra-chave baseada no texto do OCR
-    const words = (doc.ocrText || '').split(/\s+/).filter(w => w.length > 4 && /^[A-Za-z]+$/.test(w));
-    setReclassifyKeyword(words.length > 0 ? words[0].toUpperCase() : '');
+    const existing = getLearnedPatternForCategory(doc.issuer || '');
+    if (existing) {
+      setReclassifyKeyword(existing.toUpperCase());
+    } else {
+      const benMatch = (doc.ocrText || '').match(/(?:BENEFICIARIO|CEDENTE)[^A-Z0-9]+([A-Z0-9\s]{4,40})/i);
+      if (benMatch) {
+        setReclassifyKeyword(benMatch[1].trim().split(' ')[0].toUpperCase());
+      } else {
+        const words = (doc.ocrText || '').split(/\s+/).filter(w => w.length > 4 && /^[A-Za-z]+$/.test(w));
+        setReclassifyKeyword(words.length > 0 ? words[0].toUpperCase() : '');
+      }
+    }
     setReclassifyVisible(true);
   };
 

@@ -1,7 +1,7 @@
 import { extractFields } from '../src/utils/extractor';
 
 describe('Extrator V3 (Casos robustos e Enel)', () => {
-  it('deve ler a referencia da Enel mesmo com erro de OCR (NESANO)', () => {
+  it('deve ler a referencia da Enel mesmo com erro de OCR (NESANO)', async () => {
     const enelMock = {
       text: 'enel 10/2026 VENCIMENTO 10/11/2026 TOTAL A PAGAR R$ 181,31',
       blocks: [
@@ -14,22 +14,22 @@ describe('Extrator V3 (Casos robustos e Enel)', () => {
       ]
     };
 
-    const fields = extractFields(enelMock as any);
+    const fields = await extractFields(enelMock as any);
     expect(fields.issuer).toBe('ENEL');
     expect(fields.referenceMonth).toBe('10/2026');
     expect(fields.dueDate).toBe('2026-11-10');
     expect(fields.totalAmountCents).toBe(18131);
   });
 
-  it('deve ignorar CPF no texto e focar no CNPJ', () => {
+  it('deve ignorar CPF no texto e focar no CNPJ', async () => {
     const cnpjMock = 'CPF: 123.456.789-00 CNPJ: 33.050.071/0001-58';
-    const fields = extractFields(cnpjMock);
+    const fields = await extractFields(cnpjMock);
     expect(fields.cnpj).toBe('33050071000158');
   });
 
-  it('deve classificar comprovante de PIX corretamente', () => {
+  it('deve classificar comprovante de PIX corretamente', async () => {
     const pixMock = 'COMPROVANTE DE PIX\nValor: R$ 50,00\nData: 01/10/2026';
-    const fields = extractFields(pixMock);
+    const fields = await extractFields(pixMock);
     expect(fields.documentType).toBe('PIX');
     expect(fields.totalAmountCents).toBe(5000);
   });
