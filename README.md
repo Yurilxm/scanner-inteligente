@@ -28,7 +28,7 @@ Aplicativo mobile de finanças pessoais focado em **privacidade absoluta**. Digi
 - **Banco:** ```expo-sqlite``` (local)
 - **UI:** ```expo-linear-gradient```, ```react-native-reanimated```, ```react-native-gesture-handler```
 - **Exportação:** ```expo-print```, ```expo-sharing```, ```expo-intent-launcher```
-- **Testes:** Jest + Testing Library (**128 testes automatizados**)
+- **Testes:** Jest + Testing Library (**137 testes automatizados**)
 
 ## Como Instalar (Desenvolvedores)
 
@@ -66,12 +66,13 @@ O script cria/atualiza ```Planilha_Contas.xlsx``` automaticamente, com backup an
 
 ## Arquitetura e Decisões Técnicas
 
+- **Estrutura:** Rotas do Expo Router em ```src/app/```; componentes em ```src/components/``` (incluindo ```ReclassifyModal```, usado na Revisão e nos Detalhes); formatação de moeda/datas centralizada em ```src/utils/format.ts```.
 - **Banco Local (SQLite):** Cada perfil usa ```scanner_[perfil].db``` separado, trocado em runtime.
 - **Tabelas:** ```documents``` (contas), ```settings``` (preferências), ```learned_categories``` (aprendizado) e ```cnpj_cache``` (cache de CNPJ com TTL de 30 dias).
 - **Pipeline de Imagem:** Redimensionamento para 1080px antes do OCR.
 - **Extrator:** Regex contextual + fallback posicional + cache de CNPJ e, se autorizado, consulta em paralelo (circuit breaker de 60s se todas APIs falharem).
 - **Banco versionado:** Migrações via ```PRAGMA user_version``` (v1 corrige tipos de ```isPaid```/```totalAmountCents``` em bancos antigos).
-- **Testes:** 128 testes cobrindo extração, banco, migração, notificações, privacidade, CSV/HTML escape, linha digitável, cache de CNPJ, boletos reais (Enel, Prolagos, UVA, Sicoob, NetMaxxi).
+- **Testes:** 137 testes cobrindo extração, banco, migração, notificações, privacidade, CSV/HTML escape, linha digitável, cache de CNPJ, boletos reais (Enel, Prolagos, UVA, Sicoob, NetMaxxi).
 
 ## Workarounds Críticos (Windows)
 

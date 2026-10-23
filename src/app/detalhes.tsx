@@ -1,43 +1,40 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, Pressable, ScrollView, Modal, TextInput, BackHandler } from 'react-native';
+import { View, Text, StyleSheet, Image, Pressable, ScrollView, Modal, TextInput, BackHandler, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { getDocumentById, deleteDocumentById, togglePaidStatus, saveLearnedCategory, updateDocumentIssuer, getLearnedPatternForCategory, SavedDocument } from '../src/db/database';
+import { getDocumentById, deleteDocumentById, togglePaidStatus, updateDocumentIssuer, SavedDocument } from '../db/database';
 import { File } from 'expo-file-system';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { ScannerBackground } from '../src/components/ScannerBackground';
-import { Theme } from '../src/constants/theme';
-import { CustomModal } from '../src/components/CustomModal';
-import { ZoomableImage } from '../src/components/ZoomableImage';
-import { cancelDueDateReminders, syncDueDateReminders } from '../src/utils/notifications';
+import { ScannerBackground } from '../components/ScannerBackground';
+import { Theme } from '../constants/theme';
+import { CustomModal } from '../components/CustomModal';
+import { ZoomableImage } from '../components/ZoomableImage';
+import { cancelDueDateReminders, syncDueDateReminders } from '../utils/notifications';
+import { ReclassifyModal } from '../components/ReclassifyModal';
+import { brDateToISO, formatBRL, isoToBR, maskDateInput, todayISO } from '../utils/format';
 
 export default function DetalhesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [doc, setDoc] = useState<SavedDocument | null>(null);
+  const [doc, setDoc] = useState<SavedDocument | null>(() => (id ? getDocumentById(id) : null));
   const [zoomVisible, setZoomVisible] = useState(false);
   const [deleteVisible, setDeleteVisible] = useState(false);
   const [payModalVisible, setPayModalVisible] = useState(false);
   const [payDateInput, setPayDateInput] = useState('');
   const [reclassifyVisible, setReclassifyVisible] = useState(false);
-  const [reclassifyCategory, setReclassifyCategory] = useState('');
-  const [reclassifyKeyword, setReclassifyKeyword] = useState('');
-
-  useEffect(() => {
-    if (id) setDoc(getDocumentById(id));
-  }, [id]);
 
   useEffect(() => {
     const onBackPress = () => {
       if (zoomVisible) { setZoomVisible(false); return true; }
       if (payModalVisible) { setPayModalVisible(false); return true; }
       if (deleteVisible) { setDeleteVisible(false); return true; }
+      if (reclassifyVisible) { setReclassifyVisible(false); return true; }
       return false;
     };
     const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => subscription.remove();
-  }, [zoomVisible, payModalVisible, deleteVisible]);
+  }, [zoomVisible, payModalVisible, deleteVisible, reclassifyVisible]);
 
   if (!doc) return null;
 
@@ -56,39 +53,23 @@ export default function DetalhesScreen() {
     syncDueDateReminders(updated).catch(e => console.warn('Erro ao atualizar notificacao', e));
   };
 
-  const handleOpenReclassify = () => {
-    setReclassifyCategory(doc.issuer || '');
-    const existing = getLearnedPatternForCategory(doc.issuer || '');
-    if (existing) {
-      setReclassifyKeyword(existing.toUpperCase());
-    } else {
-      const benMatch = (doc.ocrText || '').match(/(?:BENEFICIARIO|CEDENTE)[^A-Z0-9]+([A-Z0-9\s]{4,40})/i);
-      if (benMatch) {
-        setReclassifyKeyword(benMatch[1].trim().split(' ')[0].toUpperCase());
-      } else {
-        const words = (doc.ocrText || '').split(/\s+/).filter(w => w.length > 4 && /^[A-Za-z]+$/.test(w));
-        setReclassifyKeyword(words.length > 0 ? words[0].toUpperCase() : '');
-      }
-    }
-    setReclassifyVisible(true);
-  };
-
-  const handleSaveReclassify = () => {
-    if (!reclassifyCategory.trim() || !reclassifyKeyword.trim()) return;
-    saveLearnedCategory(reclassifyKeyword.trim(), reclassifyCategory.trim().toUpperCase());
-    updateDocumentIssuer(doc.id, reclassifyCategory.trim().toUpperCase());
-    updateDoc({ ...doc, issuer: reclassifyCategory.trim().toUpperCase() });
+  const handleReclassified = (category: string) => {
+    updateDocumentIssuer(doc.id, category);
+    updateDoc({ ...doc, issuer: category });
     setReclassifyVisible(false);
   };
 
   const handleOpenPayModal = () => {
-    setPayDateInput(new Date().toLocaleDateString('pt-BR'));
+    setPayDateInput(isoToBR(todayISO()));
     setPayModalVisible(true);
   };
 
   const handleConfirmPayment = () => {
-    const parts = payDateInput.split('/');
-    const formattedDate = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : new Date().toISOString().split('T')[0];
+    const formattedDate = brDateToISO(payDateInput);
+    if (!formattedDate) {
+      Alert.alert('Data invalida', 'Informe a data no formato DD/MM/AAAA');
+      return;
+    }
     togglePaidStatus(doc.id, doc.isPaid, formattedDate);
     updateDoc({ ...doc, isPaid: 1, paymentDate: formattedDate });
     setPayModalVisible(false);
@@ -128,10 +109,10 @@ export default function DetalhesScreen() {
             <Text style={styles.value}>{doc.referenceMonth || '-'}</Text>
 
             <Text style={styles.label}>Vencimento</Text>
-            <Text style={styles.value}>{doc.dueDate ? doc.dueDate.split('-').reverse().join('/') : '-'}</Text>
+            <Text style={styles.value}>{isoToBR(doc.dueDate) || '-'}</Text>
 
             <Text style={styles.label}>Valor Total</Text>
-            <Text style={styles.value}>{doc.totalAmountCents ? `R$ ${(doc.totalAmountCents / 100).toFixed(2).replace('.', ',')}` : '-'}</Text>
+            <Text style={styles.value}>{formatBRL(doc.totalAmountCents) || '-'}</Text>
 
             <Text style={styles.label}>Situacao</Text>
             <Text style={[styles.value, { color: doc.isPaid ? Theme.colors.success : Theme.colors.warning }]}>
@@ -140,7 +121,7 @@ export default function DetalhesScreen() {
             {doc.isPaid === 1 && doc.paymentDate && (
               <>
                 <Text style={styles.label}>Pago em</Text>
-                <Text style={styles.value}>{doc.paymentDate.split('-').reverse().join('/')}</Text>
+                <Text style={styles.value}>{isoToBR(doc.paymentDate)}</Text>
               </>
             )}
           </View>
@@ -149,7 +130,7 @@ export default function DetalhesScreen() {
             <Text style={styles.toggleText}>{doc.isPaid ? 'Desmarcar Pago' : 'Marcar como Pago'}</Text>
           </Pressable>
 
-          <Pressable style={styles.reclassifyButton} onPress={handleOpenReclassify}>
+          <Pressable style={styles.reclassifyButton} onPress={() => setReclassifyVisible(true)}>
             <Text style={styles.reclassifyText}>Reclassificar Conta</Text>
           </Pressable>
 
@@ -177,7 +158,7 @@ export default function DetalhesScreen() {
             <TextInput
               style={styles.payInput}
               value={payDateInput}
-              onChangeText={setPayDateInput}
+              onChangeText={(t) => setPayDateInput(maskDateInput(t))}
               placeholder="DD/MM/AAAA"
               keyboardType="numeric"
             />
@@ -194,43 +175,16 @@ export default function DetalhesScreen() {
       </Modal>
 
 
-      <Modal visible={reclassifyVisible} transparent animationType="fade">
-        <View style={styles.modalContainer}>
-          <View style={styles.payModalBox}>
-            <Text style={styles.payModalTitle}>Reclassificar Conta</Text>
-            <Text style={{ color: Theme.colors.textSecondary, fontSize: 12, marginBottom: 12, textAlign: 'center' }}>
-              Vou aprender que boletos com esta palavra-chave pertencem a esta categoria.
-            </Text>
-
-            <Text style={styles.label}>Nome da Categoria</Text>
-            <TextInput
-              style={styles.payInput}
-              value={reclassifyCategory}
-              onChangeText={setReclassifyCategory}
-              placeholder="Ex: CONDOMINIO CISNE BRANCO"
-              autoCapitalize="characters"
-            />
-
-            <Text style={styles.label}>Palavra-chave (padrão)</Text>
-            <TextInput
-              style={styles.payInput}
-              value={reclassifyKeyword}
-              onChangeText={setReclassifyKeyword}
-              placeholder="Ex: CISNE BRANCO"
-              autoCapitalize="characters"
-            />
-
-            <View style={styles.payActions}>
-              <Pressable style={styles.payCancel} onPress={() => setReclassifyVisible(false)}>
-                <Text style={styles.payCancelText}>Cancelar</Text>
-              </Pressable>
-              <Pressable style={styles.payConfirm} onPress={handleSaveReclassify}>
-                <Text style={styles.payConfirmText}>Salvar</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      {reclassifyVisible && (
+        <ReclassifyModal
+          title="Reclassificar Conta"
+          confirmText="Salvar"
+          initialCategory={doc.issuer || ''}
+          ocrText={doc.ocrText || ''}
+          onSaved={handleReclassified}
+          onCancel={() => setReclassifyVisible(false)}
+        />
+      )}
 
       <CustomModal
         visible={deleteVisible}

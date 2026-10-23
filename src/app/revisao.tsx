@@ -1,37 +1,32 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TextInput, StyleSheet, ActivityIndicator, Image, Pressable, Alert, KeyboardAvoidingView, Platform, ScrollView, Modal, BackHandler } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { ZoomableImage } from '../src/components/ZoomableImage';
+import { ZoomableImage } from '../components/ZoomableImage';
 import { router } from 'expo-router';
 import { File } from 'expo-file-system';
-import { saveDocument, getLearnedCategories, saveLearnedCategory, getLearnedPatternForCategory, getSetting } from '../src/db/database';
-import { useDocument } from '../src/context/DocumentContext';
-import { extractDocumentData } from '../src/utils/ocr';
-import { cleanupDebugFiles } from '../src/utils/files';
+import { saveDocument, getLearnedCategories, getSetting } from '../db/database';
+import { useDocument } from '../context/DocumentContext';
+import { extractDocumentData } from '../utils/ocr';
+import { cleanupDebugFiles } from '../utils/files';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import { extractFields } from '../src/utils/extractor';
-import { parseBRLToCents } from '../src/utils/money';
+import { extractFields } from '../utils/extractor';
+import { parseBRLToCents } from '../utils/money';
+import { brDateToISO, centsToDecimal, isoToBR, maskDateInput } from '../utils/format';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { ScannerBackground } from '../src/components/ScannerBackground';
-import { Theme } from '../src/constants/theme';
-import { CustomModal } from '../src/components/CustomModal';
-import { requestNotificationPermissions, scheduleDueDateReminder } from '../src/utils/notifications';
+import { ScannerBackground } from '../components/ScannerBackground';
+import { Theme } from '../constants/theme';
+import { CustomModal } from '../components/CustomModal';
+import { ReclassifyModal } from '../components/ReclassifyModal';
+import { requestNotificationPermissions, scheduleDueDateReminder } from '../utils/notifications';
 
 export default function RevisaoScreen() {
-
-  const formatDateInput = (text: string) => {
-    const cleaned = text.replace(/\D/g, '');
-    if (cleaned.length <= 2) return cleaned;
-    if (cleaned.length <= 4) return `${cleaned.slice(0, 2)}/${cleaned.slice(2)}`;
-    return `${cleaned.slice(0, 2)}/${cleaned.slice(2, 4)}/${cleaned.slice(4, 8)}`;
-  };
-
   const { imageUri, ocrText, setOcrText, fields, setFields, reset } = useDocument();
   const [isLoading, setIsLoading] = useState(true);
   const [isImageVisible, setIsImageVisible] = useState(false);
   const [isSuccessVisible, setIsSuccessVisible] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Estado local para edicao
   const [editIssuer, setEditIssuer] = useState('');
@@ -42,8 +37,6 @@ export default function RevisaoScreen() {
   const [editValue, setEditValue] = useState('');
   const [editPaymentDate, setEditPaymentDate] = useState('');
   const [reclassifyVisible, setReclassifyVisible] = useState(false);
-  const [reclassifyCategory, setReclassifyCategory] = useState('');
-  const [reclassifyKeyword, setReclassifyKeyword] = useState('');
 
   useEffect(() => {
     const onBackPress = () => {
@@ -58,11 +51,8 @@ export default function RevisaoScreen() {
   }, [isImageVisible]);
 
   useEffect(() => {
+    if (!imageUri) return;
     requestNotificationPermissions();
-    if (!imageUri) {
-      setIsSuccessVisible(true);
-      return;
-    }
 
     let isMounted = true;
 
@@ -86,9 +76,8 @@ export default function RevisaoScreen() {
           setEditReference(extracted.referenceMonth || '');
           setEditCnpj(extracted.cnpj || '');
           setEditCpf(extracted.cpf || '');
-          // Inverte de AAAA-MM-DD para DD/MM/AAAA
-          setEditDate(extracted.dueDate ? extracted.dueDate.split('-').reverse().join('/') : '');
-          setEditValue(extracted.totalAmountCents ? (extracted.totalAmountCents / 100).toFixed(2).replace('.', ',') : '');
+          setEditDate(isoToBR(extracted.dueDate));
+          setEditValue(centsToDecimal(extracted.totalAmountCents));
         }
       } catch (error) {
         if (isMounted) {
@@ -111,32 +100,6 @@ export default function RevisaoScreen() {
 
   if (!imageUri) return null;
 
-  const handleOpenReclassify = () => {
-    setReclassifyCategory(editIssuer || '');
-    // Se já existe uma palavra salva para essa categoria, usa ela
-    const existing = getLearnedPatternForCategory(editIssuer || '');
-    if (existing) {
-      setReclassifyKeyword(existing.toUpperCase());
-    } else {
-      // Senão, tenta sugerir pelo Beneficiário
-      const benMatch = (ocrText || '').match(/(?:BENEFICIARIO|CEDENTE)[^A-Z0-9]+([A-Z0-9\s]{4,40})/i);
-      if (benMatch) {
-        setReclassifyKeyword(benMatch[1].trim().split(' ')[0].toUpperCase());
-      } else {
-        const words = (ocrText || '').split(/\s+/).filter(w => w.length > 4 && /^[A-Za-z]+$/.test(w));
-        setReclassifyKeyword(words.length > 0 ? words[0].toUpperCase() : '');
-      }
-    }
-    setReclassifyVisible(true);
-  };
-
-  const handleSaveReclassify = () => {
-    if (!reclassifyCategory.trim() || !reclassifyKeyword.trim()) return;
-    saveLearnedCategory(reclassifyKeyword.trim(), reclassifyCategory.trim().toUpperCase());
-    setEditIssuer(reclassifyCategory.trim().toUpperCase());
-    setReclassifyVisible(false);
-  };
-
   const onCancel = async () => {
     try {
       // Apaga o arquivo fisico antes de sair
@@ -150,7 +113,7 @@ export default function RevisaoScreen() {
   };
 
   const onSave = async () => {
-    if (!fields) return;
+    if (!fields || isSaving) return;
 
     // Sincroniza o estado local de volta para o Contexto (se o usuario editou)
     const finalFields = {
@@ -159,29 +122,26 @@ export default function RevisaoScreen() {
       referenceMonth: editReference || null,
       cnpj: editCnpj || null,
       cpf: editCpf || null,
-      dueDate: editDate.includes('/') ? editDate.split('/').reverse().join('-') : editDate || null,
+      dueDate: editDate.trim() ? brDateToISO(editDate) : null,
       totalAmountCents: editValue.trim() ? parseBRLToCents(editValue) : null,
     };
+    const paymentDateIso = editPaymentDate.trim() ? brDateToISO(editPaymentDate) : null;
 
     if (editValue.trim() && finalFields.totalAmountCents === null) {
       Alert.alert('Valor invalido', 'Informe o valor no formato 1.234,56');
       return;
     }
+    if (editDate.trim() && !finalFields.dueDate) {
+      Alert.alert('Vencimento invalido', 'Informe a data no formato DD/MM/AAAA');
+      return;
+    }
+    if (editPaymentDate.trim() && !paymentDateIso) {
+      Alert.alert('Data de pagamento invalida', 'Informe a data no formato DD/MM/AAAA');
+      return;
+    }
 
+    setIsSaving(true);
     try {
-      let paymentDateIso = null;
-      if (editPaymentDate && editPaymentDate.trim() !== '') {
-        const parts = editPaymentDate.split('/');
-        if (parts.length === 3) {
-          // Garante que tenha dois dígitos (ex: 8 vira 08)
-          const day = parts[0].padStart(2, '0');
-          const month = parts[1].padStart(2, '0');
-          const year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
-          paymentDateIso = `${year}-${month}-${day}`;
-        }
-      }
-
-      console.log('Salvando com paymentDateIso:', paymentDateIso);
       const savedId = saveDocument(imageUri!, ocrText || '', finalFields, paymentDateIso);
       
       try {
@@ -197,6 +157,7 @@ export default function RevisaoScreen() {
     } catch (e) {
       console.error('Erro detalhado ao salvar:', e);
       Alert.alert('Erro ao salvar', String(e));
+      setIsSaving(false);
     }
   };
 
@@ -264,7 +225,7 @@ export default function RevisaoScreen() {
 
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, marginBottom: 4 }}>
               <Text style={styles.label}>Emissor</Text>
-              <Pressable onPress={handleOpenReclassify}>
+              <Pressable onPress={() => setReclassifyVisible(true)}>
                 <Text style={{ color: Theme.colors.primary, fontSize: 12, fontFamily: Theme.fonts.bold }}>Reclassificar e Aprender</Text>
               </Pressable>
             </View>
@@ -277,13 +238,13 @@ export default function RevisaoScreen() {
             <TextInput style={styles.input} value={editCnpj} onChangeText={setEditCnpj} keyboardType="numeric" placeholder="Nao encontrado" />
 
             <Text style={styles.label}>Data de Vencimento (DD/MM/AAAA)</Text>
-            <TextInput style={styles.input} value={editDate} onChangeText={setEditDate} placeholder="DD/MM/AAAA" />
+            <TextInput style={styles.input} value={editDate} onChangeText={(t) => setEditDate(maskDateInput(t))} placeholder="DD/MM/AAAA" keyboardType="numeric" />
 
             <Text style={styles.label}>Valor Total (R$)</Text>
             <TextInput style={styles.input} value={editValue} onChangeText={setEditValue} keyboardType="numeric" placeholder="0,00" />
 
             <Text style={styles.label}>Data de Pagamento (Opcional)</Text>
-            <TextInput style={styles.input} value={editPaymentDate} onChangeText={(t) => setEditPaymentDate(formatDateInput(t))} placeholder="DD/MM/AAAA" keyboardType="numeric" />
+            <TextInput style={styles.input} value={editPaymentDate} onChangeText={(t) => setEditPaymentDate(maskDateInput(t))} placeholder="DD/MM/AAAA" keyboardType="numeric" />
 
             <Text style={styles.sectionTitle}>Texto Completo (OCR)</Text>
             <TextInput
@@ -302,49 +263,23 @@ export default function RevisaoScreen() {
         <Pressable style={styles.buttonSecondary} onPress={onCancel}>
           <Text style={styles.buttonTextSecondary}>Descartar</Text>
         </Pressable>
-        <Pressable style={styles.button} onPress={onSave} disabled={isLoading}>
+        <Pressable style={styles.button} onPress={onSave} disabled={isLoading || isSaving}>
           <Text style={styles.buttonText}>Salvar Documento</Text>
         </Pressable>
       </View>
       </KeyboardAvoidingView>
 
-      <Modal visible={reclassifyVisible} transparent animationType="fade">
-        <View style={styles.modalContainer}>
-          <View style={styles.payModalBox}>
-            <Text style={styles.payModalTitle}>Reclassificar e Aprender</Text>
-            <Text style={{ color: Theme.colors.textSecondary, fontSize: 12, marginBottom: 12, textAlign: 'center' }}>
-              Vou aprender que boletos com esta palavra-chave pertencem a esta categoria.
-            </Text>
-
-            <Text style={styles.label}>Nome da Categoria</Text>
-            <TextInput
-              style={styles.input}
-              value={reclassifyCategory}
-              onChangeText={setReclassifyCategory}
-              placeholder="Ex: CONDOMINIO CISNE BRANCO"
-              autoCapitalize="characters"
-            />
-
-            <Text style={styles.label}>Palavra-chave (padrão)</Text>
-            <TextInput
-              style={styles.input}
-              value={reclassifyKeyword}
-              onChangeText={setReclassifyKeyword}
-              placeholder="Ex: CISNE BRANCO"
-              autoCapitalize="characters"
-            />
-
-            <View style={styles.payActions}>
-              <Pressable style={styles.payCancel} onPress={() => setReclassifyVisible(false)}>
-                <Text style={styles.payCancelText}>Cancelar</Text>
-              </Pressable>
-              <Pressable style={styles.payConfirm} onPress={handleSaveReclassify}>
-                <Text style={styles.payConfirmText}>Aprender</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      {reclassifyVisible && (
+        <ReclassifyModal
+          initialCategory={editIssuer}
+          ocrText={ocrText || ''}
+          onSaved={(category) => {
+            setEditIssuer(category);
+            setReclassifyVisible(false);
+          }}
+          onCancel={() => setReclassifyVisible(false)}
+        />
+      )}
 
       <CustomModal
         visible={isSuccessVisible}
@@ -394,7 +329,6 @@ const styles = StyleSheet.create({
   textArea: { height: 150, marginTop: 8 },
   modalContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center', paddingTop: 50, paddingBottom: 50 },
   modalClose: { position: 'absolute', top: 40, right: 20, zIndex: 10 },
-  fullImage: { width: '100%', height: '100%' },
   actions: {
     flexDirection: 'row',
     padding: 16,
@@ -422,11 +356,4 @@ const styles = StyleSheet.create({
   },
   buttonTextSecondary: { color: Theme.colors.primary, fontFamily: Theme.fonts.medium, fontSize: 16 },
 
-  payModalBox: { backgroundColor: Theme.colors.panel, padding: 20, borderRadius: 12, width: '80%', borderWidth: 1, borderColor: Theme.colors.border },
-  payModalTitle: { fontSize: 18, fontFamily: Theme.fonts.bold, color: Theme.colors.primary, marginBottom: 16, textAlign: 'center' },
-  payActions: { flexDirection: 'row', gap: 12, marginTop: 16 },
-  payCancel: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: Theme.colors.border },
-  payCancelText: { color: Theme.colors.textSecondary, fontFamily: Theme.fonts.bold },
-  payConfirm: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', backgroundColor: Theme.colors.primary },
-  payConfirmText: { color: Theme.colors.background, fontFamily: Theme.fonts.bold },
 });

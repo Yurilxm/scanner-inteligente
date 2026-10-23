@@ -34,7 +34,7 @@ export async function saveImageLocally(sourceUri: string): Promise<string> {
     await FileSystem.copyAsync({ from: sourceUri, to: destUri });
 
     return destUri;
-  } catch (error) {
+  } catch {
     throw new Error('Falha ao salvar a imagem localmente');
   }
 }

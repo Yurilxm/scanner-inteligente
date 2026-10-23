@@ -1,5 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import { ExtractedFields } from '../types/document';
+import { todayISO } from '../utils/format';
 
 let currentProfile = 'yuri';
 let db = SQLite.openDatabaseSync(`scanner_${currentProfile}.db`);
@@ -145,7 +146,7 @@ export function getDocuments(): SavedDocument[] {
 
 export function togglePaidStatus(id: string, currentStatus: number, paymentDate?: string): void {
   const newStatus = currentStatus === 1 ? 0 : 1;
-  const dateToSave = newStatus === 1 ? (paymentDate || new Date().toISOString().split('T')[0]) : null;
+  const dateToSave = newStatus === 1 ? (paymentDate || todayISO()) : null;
   db.runSync('UPDATE documents SET isPaid = ?, paymentDate = ? WHERE id = ?', newStatus, dateToSave, id);
 }
 

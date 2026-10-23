@@ -2,6 +2,7 @@ import { File, Paths } from 'expo-file-system';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { SavedDocument } from '../db/database';
+import { centsToDecimal, formatBRL, isoToBR } from './format';
 
 function escapeCSV(value: string | null | undefined): string {
   if (!value) return '';
@@ -27,19 +28,9 @@ export function generateCSV(documents: SavedDocument[]): string {
   const BOM = '\uFEFF';
   const header = 'ID;Tipo;Emissor;Referencia;Vencimento;Valor (R$);CNPJ;Pago;Data Pagamento;Linha Digitavel\n';
   const rows = documents.map(doc => {
-    const valor = doc.totalAmountCents ? (doc.totalAmountCents / 100).toFixed(2).replace('.', ',') : '';
-    let data = doc.dueDate || '';
-    if (data.includes('-')) {
-      const [y, m, d] = data.split('-');
-      data = `${d}/${m}/${y}`;
-    }
-    
-    // Formata a data de pagamento se existir
-    let pDate = '';
-    if (doc.paymentDate && doc.paymentDate.includes('-')) {
-      const [y, m, d] = doc.paymentDate.split('-');
-      pDate = `${d}/${m}/${y}`;
-    }
+    const valor = centsToDecimal(doc.totalAmountCents);
+    const data = isoToBR(doc.dueDate);
+    const pDate = isoToBR(doc.paymentDate);
 
     return `${escapeCSV(doc.id)};${escapeCSV(doc.documentType)};${escapeCSV(doc.issuer)};${escapeCSV(doc.referenceMonth)};${escapeCSV(data)};${escapeCSV(valor)};${escapeCSV(doc.cnpj)};${doc.isPaid ? 'Sim' : 'Nao'};${escapeCSV(pDate)};${escapeCSV(doc.boletoLine)}`;
   });
@@ -79,17 +70,9 @@ export async function generatePDFFile(documents: SavedDocument[]) {
             <th style="border: 1px solid #ddd; padding: 8px;">Pagamento</th>
           </tr>
           ${documents.map(doc => {
-            const valor = doc.totalAmountCents ? `R$ ${(doc.totalAmountCents / 100).toFixed(2).replace('.', ',')}` : '-';
-            let data = doc.dueDate || '-';
-            if (data.includes('-')) {
-              const [y, m, d] = data.split('-');
-              data = `${d}/${m}/${y}`;
-            }
-            let pDate = '-';
-            if (doc.paymentDate && doc.paymentDate.includes('-')) {
-              const [y, m, d] = doc.paymentDate.split('-');
-              pDate = `${d}/${m}/${y}`;
-            }
+            const valor = formatBRL(doc.totalAmountCents) || '-';
+            const data = isoToBR(doc.dueDate) || '-';
+            const pDate = isoToBR(doc.paymentDate) || '-';
             return `
               <tr>
                 <td style="border: 1px solid #ddd; padding: 8px;">${escapeHTML(doc.documentType)}</td>

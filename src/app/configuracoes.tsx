@@ -4,10 +4,10 @@ import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { ScannerBackground } from '../src/components/ScannerBackground';
-import { Theme } from '../src/constants/theme';
-import { getSetting, setSetting } from '../src/db/database';
-import { CustomModal } from '../src/components/CustomModal';
+import { ScannerBackground } from '../components/ScannerBackground';
+import { Theme } from '../constants/theme';
+import { getSetting, setSetting } from '../db/database';
+import { CustomModal } from '../components/CustomModal';
 
 export default function ConfiguracoesScreen() {
   const [daysBefore, setDaysBefore] = useState(() => parseInt(getSetting('notification_days_before', '5'), 10) || 5);

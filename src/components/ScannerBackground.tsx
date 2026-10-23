@@ -14,7 +14,7 @@ export function ScannerBackground() {
       -1,
       false
     );
-  }, [height]);
+  }, [height, translateY]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
