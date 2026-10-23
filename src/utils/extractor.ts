@@ -111,12 +111,12 @@ function extractValue(text: string): number | null {
     }
   }
 
-  // 3. Fallback: último valor decimal, ignorando anos
+  // 3. Fallback: último valor decimal (anos não chegam aqui: a regex exige centavos)
   const decimals = cleaned.match(/(\d{1,3}(?:\.\d{3})*[.,]\d{2})/g);
   if (decimals) {
     const parsed = decimals
       .map(parseToCents)
-      .filter((v): v is number => v !== null && !(v >= 190000 && v <= 210000));
+      .filter((v): v is number => v !== null);
     if (parsed.length > 0) return parsed[parsed.length - 1];
   }
 
@@ -232,10 +232,11 @@ function extractIssuerFromKeywords(text: string): string | null {
   if (/\bUVA\b|ANTARES|EDUCACIONAL|FACULDADE|UNIVERSIDADE/i.test(text)) return 'FACULDADE';
   if (/IPVA|DETRAN/i.test(text)) return 'IPVA';
   if (/SEGURO|SEGURADORA|PORTO SEGURO/i.test(text)) return 'SEGURO';
-  if (/GAS|ULTRAGAZ|LIQUIGAS/i.test(text)) return 'GAS';
+  // \b evita falsos positivos como GASTOS, ESTIMADO, ULTIMO, DECLAROU
+  if (/\bGAS\b|ULTRAGAZ|LIQUIGAS|COMGAS/i.test(text)) return 'GAS';
   if (/VISTORIA/i.test(text)) return 'VISTORIA';
-  if (/TIM|VIVO|CLARO/i.test(text)) return 'TELEFONIA';
-  if (/ACADEMIA|FITNESS|SMART FIT|GYM/i.test(text)) return 'ACADEMIA';
+  if (/\b(?:TIM|VIVO|CLARO)\b/i.test(text)) return 'TELEFONIA';
+  if (/ACADEMIA|FITNESS|SMART FIT|\bGYM\b/i.test(text)) return 'ACADEMIA';
   return null;
 }
 
@@ -271,10 +272,14 @@ export async function extractFields(
   }
 
   // 1. TIPO
+  // Indicadores fortes de boleto vencem; os fracos (VALOR TOTAL etc.) também aparecem em notas fiscais
+  const strongBoleto = /BENEFICIARIO|NOSSO NUMERO|LINHA DIGITAVEL|\bBOLETO\b|\bUVA\b|FACULDADE|EDUCACIONAL|UNIVERSIDADE|\bENEL\b|PROLAGOS|NETMAXX|SICOOB|CONDOMIN|CISNE BRANC/i;
+  const weakBoleto = /TOTAL A PAGAR|VALOR DO DOCUMENTO|VALOR TOTAL/i;
   let documentType: DocumentType = 'OUTROS';
-  if (/BENEFICIARIO|NOSSO NUMERO|LINHA DIGITAVEL|TOTAL A PAGAR|BOLETO|UVA|FACULDADE|EDUCACIONAL|UNIVERSIDADE|ENEL|PROLAGOS|NETMAXX|SICOOB|CONDOMIN|CISNE BRANC|VALOR DO DOCUMENTO|VALOR TOTAL/i.test(text)) documentType = 'BOLETO';
-  else if (/PIX/i.test(text) && !/BENEFICIARIO/i.test(text)) documentType = 'PIX';
+  if (strongBoleto.test(text)) documentType = 'BOLETO';
   else if (/NOTA FISCAL|DANFE/i.test(text)) documentType = 'NOTA_FISCAL';
+  else if (weakBoleto.test(text)) documentType = 'BOLETO';
+  else if (/\bPIX\b/i.test(text)) documentType = 'PIX';
   else if (/RECIBO/i.test(text)) documentType = 'RECIBO';
 
   // 2. CNPJ

@@ -10,6 +10,7 @@ import { extractDocumentData, extractRawOcrData } from '../src/utils/ocr';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { extractFields } from '../src/utils/extractor';
+import { parseBRLToCents } from '../src/utils/money';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ScannerBackground } from '../src/components/ScannerBackground';
@@ -176,8 +177,13 @@ export default function RevisaoScreen() {
       cnpj: editCnpj || null,
       cpf: editCpf || null,
       dueDate: editDate.includes('/') ? editDate.split('/').reverse().join('-') : editDate || null,
-      totalAmountCents: editValue ? Math.round(parseFloat(editValue.replace(',', '.')) * 100) : null,
+      totalAmountCents: editValue.trim() ? parseBRLToCents(editValue) : null,
     };
+
+    if (editValue.trim() && finalFields.totalAmountCents === null) {
+      Alert.alert('Valor invalido', 'Informe o valor no formato 1.234,56');
+      return;
+    }
 
     try {
       let paymentDateIso = null;
