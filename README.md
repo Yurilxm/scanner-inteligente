@@ -2,7 +2,7 @@
 
 Aplicativo mobile de finanças pessoais focado em **privacidade absoluta**. Digitaliza contas de consumo e boletos via OCR local, organiza os vencimentos, aprende com o usuário e automatiza a exportação para Excel.
 
-> **Filosofia:** Local-First. Nenhum dado sai do dispositivo. Sem servidores, sem nuvem, sem rastreamento.
+> **Filosofia:** Local-First. Por padrão, nenhum dado sai do dispositivo. Sem servidores, sem nuvem, sem rastreamento. A única conexão externa (consulta de CNPJ) é opcional e vem desligada.
 
 ## Funcionalidades
 
@@ -10,13 +10,13 @@ Aplicativo mobile de finanças pessoais focado em **privacidade absoluta**. Digi
 - **Scanner Inteligente:** OCR via ML Kit (Google) no próprio aparelho, sem internet.
 - **Extração Contextual:** Identifica Condomínio, IPVA, Seguro, Gás, Faculdade, Internet, Telefonia, Enel, Prolagos, etc.
 - **Aprendizado Contínuo:** Reclassificação manual com palavra-chave. Nas próximas leituras, o app acerta automaticamente.
-- **Consulta de CNPJ:** BrasilAPI + OpenCNPJ + PublicaCNPJ em paralelo (timeout 4s) com cache local de 30 dias.
+- **Consulta de CNPJ (opcional):** Desligada por padrão; ative em Configurações > Privacidade. Quando o emissor não é reconhecido, envia **apenas o CNPJ** para BrasilAPI + OpenCNPJ + PublicaCNPJ em paralelo (timeout 4s). Só CNPJs válidos são consultados, e o cache local (30 dias) é usado mesmo com a opção desligada.
 - **Tolerante a OCR:** Reconhece ```VENCIWENTO```, ```Vencirmanto```, ```5102026```, ```1 O/2026``` (erros comuns do ML Kit).
 - **Gestão de Contas:** Status Pago/Pendente com Data de Pagamento.
 - **Notificações Configuráveis:** 5, 3 ou 1 dia antes, uma vez ou diariamente.
 - **Exportação:** PDF (visualizador nativo) e CSV (padrão Excel pt-BR).
 - **Automação Desktop:** Script Python atualiza planilha Excel com backup automático.
-- **Debug OCR:** Botão ```Exportar OCR``` na tela de revisão para capturar texto bruto.
+- **Debug OCR:** Botão ```Exportar OCR``` na tela de revisão para capturar texto bruto. Os arquivos exportados são apagados na abertura do app e a cada nova exportação.
 - **Zoom na Imagem:** Pinça e toque duplo na tela de detalhes.
 
 ## Stack Tecnológica
@@ -27,7 +27,7 @@ Aplicativo mobile de finanças pessoais focado em **privacidade absoluta**. Digi
 - **Banco:** ```expo-sqlite``` (local)
 - **UI:** ```expo-linear-gradient```, ```react-native-reanimated```, ```react-native-gesture-handler```
 - **Exportação:** ```expo-print```, ```expo-sharing```, ```expo-intent-launcher```
-- **Testes:** Jest + Testing Library (**71 testes automatizados**)
+- **Testes:** Jest + Testing Library (**107 testes automatizados**)
 
 ## Como Instalar (Desenvolvedores)
 
@@ -68,8 +68,9 @@ O script cria/atualiza ```Planilha_Contas.xlsx``` automaticamente, com backup an
 - **Banco Local (SQLite):** Cada perfil usa ```scanner_[perfil].db``` separado, trocado em runtime.
 - **Tabelas:** ```documents``` (contas), ```settings``` (preferências), ```learned_categories``` (aprendizado) e ```cnpj_cache``` (cache de CNPJ com TTL de 30 dias).
 - **Pipeline de Imagem:** Redimensionamento para 1080px antes do OCR.
-- **Extrator:** Regex contextual + fallback posicional + consulta de CNPJ em paralelo (circuit breaker de 60s se todas APIs falharem).
-- **Testes:** 71 testes cobrindo extração, banco, notificações, CSV escape, cache de CNPJ, boletos reais (Enel, Prolagos, UVA, Sicoob, NetMaxxi).
+- **Extrator:** Regex contextual + fallback posicional + cache de CNPJ e, se autorizado, consulta em paralelo (circuit breaker de 60s se todas APIs falharem).
+- **Banco versionado:** Migrações via ```PRAGMA user_version``` (v1 corrige tipos de ```isPaid```/```totalAmountCents``` em bancos antigos).
+- **Testes:** 107 testes cobrindo extração, banco, migração, notificações, privacidade, CSV/HTML escape, cache de CNPJ, boletos reais (Enel, Prolagos, UVA, Sicoob, NetMaxxi).
 
 ## Workarounds Críticos (Windows)
 

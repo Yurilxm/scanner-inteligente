@@ -4,9 +4,10 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ZoomableImage } from '../src/components/ZoomableImage';
 import { router } from 'expo-router';
 import { File } from 'expo-file-system';
-import { saveDocument, getLearnedCategories, saveLearnedCategory, getLearnedPatternForCategory } from '../src/db/database';
+import { saveDocument, getLearnedCategories, saveLearnedCategory, getLearnedPatternForCategory, getSetting } from '../src/db/database';
 import { useDocument } from '../src/context/DocumentContext';
-import { extractDocumentData, extractRawOcrData } from '../src/utils/ocr';
+import { extractDocumentData } from '../src/utils/ocr';
+import { cleanupDebugFiles } from '../src/utils/files';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { extractFields } from '../src/utils/extractor';
@@ -75,7 +76,9 @@ export default function RevisaoScreen() {
         if (isMounted) {
           setOcrText(text);
           // 2. Extracao usando os blocos (se disponiveis)
-          const extracted = await extractFields(rawData, getLearnedCategories());
+          const extracted = await extractFields(rawData, getLearnedCategories(), {
+            allowCnpjLookup: getSetting('cnpj_lookup_enabled', 'false') === 'true',
+          });
           setFields(extracted);
 
           // 3. Preenche estado local para edicao
@@ -146,26 +149,6 @@ export default function RevisaoScreen() {
     router.replace('/biblioteca');
   };
 
-  const onDebugOcr = async () => {
-    try {
-      if (!imageUri) return;
-      const rawData = await extractRawOcrData(imageUri);
-      const path = `${FileSystem.documentDirectory}debug_ocr_${Date.now()}.json`;
-      await FileSystem.writeAsStringAsync(path, JSON.stringify(rawData, null, 2));
-      
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(path, {
-          mimeType: 'application/json',
-          dialogTitle: 'Enviar JSON de OCR',
-        });
-      } else {
-        Alert.alert('Erro', 'Compartilhamento indisponivel.');
-      }
-    } catch (e) {
-      Alert.alert('Erro no Debug', String(e));
-    }
-  };
-
   const onSave = async () => {
     if (!fields) return;
 
@@ -231,6 +214,8 @@ export default function RevisaoScreen() {
             onPress={async () => {
               if (!ocrText) return;
               try {
+                // O arquivo anterior já foi compartilhado; não deixa texto de contas acumulando
+                await cleanupDebugFiles();
                 const path = FileSystem.cacheDirectory + 'ocr_debug_' + Date.now() + '.txt';
                 await FileSystem.writeAsStringAsync(path, ocrText);
                 if (await Sharing.isAvailableAsync()) {

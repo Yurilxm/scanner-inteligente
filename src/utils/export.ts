@@ -12,6 +12,17 @@ function escapeCSV(value: string | null | undefined): string {
   return str;
 }
 
+// Texto vindo do OCR/usuario entra no HTML do PDF; escapa para nao virar marcacao
+export function escapeHTML(value: string | null | undefined): string {
+  if (!value) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export function generateCSV(documents: SavedDocument[]): string {
   const BOM = '\uFEFF';
   const header = 'ID;Tipo;Emissor;Referencia;Vencimento;Valor (R$);CNPJ;Pago;Data Pagamento;Linha Digitavel\n';
@@ -81,13 +92,13 @@ export async function generatePDFFile(documents: SavedDocument[]) {
             }
             return `
               <tr>
-                <td style="border: 1px solid #ddd; padding: 8px;">${doc.documentType}</td>
-                <td style="border: 1px solid #ddd; padding: 8px;">${doc.issuer || '-'}</td>
-                <td style="border: 1px solid #ddd; padding: 8px;">${doc.referenceMonth || '-'}</td>
-                <td style="border: 1px solid #ddd; padding: 8px;">${data}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${escapeHTML(doc.documentType)}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${escapeHTML(doc.issuer) || '-'}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${escapeHTML(doc.referenceMonth) || '-'}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${escapeHTML(data)}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">${valor}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">${doc.isPaid ? 'PAGO' : 'PENDENTE'}</td>
-                <td style="border: 1px solid #ddd; padding: 8px;">${pDate}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${escapeHTML(pDate)}</td>
               </tr>
             `;
           }).join('')}

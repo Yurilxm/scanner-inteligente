@@ -4,6 +4,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DocumentProvider } from '../src/context/DocumentContext';
 import { initDatabase } from '../src/db/database';
+import { cleanupDebugFiles } from '../src/utils/files';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts, Outfit_400Regular, Outfit_500Medium, Outfit_700Bold } from '@expo-google-fonts/outfit';
 import { JetBrainsMono_400Regular } from '@expo-google-fonts/jetbrains-mono';
@@ -28,6 +29,7 @@ export default function RootLayout() {
       console.error('Falha ao inicializar banco:', e);
     }
     setDbReady(true);
+    cleanupDebugFiles();
   }, []);
 
   useEffect(() => {

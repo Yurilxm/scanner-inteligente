@@ -84,6 +84,7 @@ jest.mock('expo-file-system/legacy', () => ({
   copyAsync: jest.fn(() => Promise.resolve()),
   deleteAsync: jest.fn(() => Promise.resolve()),
   writeAsStringAsync: jest.fn(() => Promise.resolve()),
+  readDirectoryAsync: jest.fn(() => Promise.resolve([])),
 }));
 
 jest.mock('expo-image-manipulator', () => ({

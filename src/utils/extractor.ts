@@ -1,5 +1,11 @@
 import { ExtractedFields, DocumentType } from '../types/document';
 import { getCachedCNPJ, saveCachedCNPJ } from '../db/database';
+import { isValidCNPJ } from './validators';
+
+export type ExtractOptions = {
+  // Consulta o CNPJ em APIs publicas (BrasilAPI, OpenCNPJ, PublicaCNPJ). Desligado por padrao.
+  allowCnpjLookup?: boolean;
+};
 
 function cleanText(text: string) {
   if (!text) return '';
@@ -179,12 +185,16 @@ function mapCNAEToCategory(cnae: string): string | null {
 
 let cnpjFetchDisabledUntil = 0;
 
-async function fetchCNPJData(cnpj: string): Promise<{ razao_social: string; categoria: string } | null> {
-  if (Date.now() < cnpjFetchDisabledUntil) return null;
+async function fetchCNPJData(cnpj: string, allowNetwork: boolean): Promise<{ razao_social: string; categoria: string } | null> {
   const clean = cnpj.replace(/\D/g, '');
+  // Cache local primeiro: funciona offline e sem enviar nada para fora
   let cached: any = null;
   try { cached = getCachedCNPJ(clean); } catch {}
   if (cached) return cached;
+
+  // Rede só com consentimento do usuario e para CNPJ valido
+  if (!allowNetwork || !isValidCNPJ(clean)) return null;
+  if (Date.now() < cnpjFetchDisabledUntil) return null;
 
   const tryFetch = async (url: string, source: string) => {
     const controller = new AbortController();
@@ -253,7 +263,8 @@ function extractIssuerFromBeneficiary(text: string): string | null {
 
 export async function extractFields(
   rawData: any,
-  learnedCategories: { pattern: string; category: string }[] = []
+  learnedCategories: { pattern: string; category: string }[] = [],
+  options: ExtractOptions = {}
 ): Promise<ExtractedFields> {
   let textInput = '';
   if (typeof rawData === 'string') textInput = rawData;
@@ -304,7 +315,7 @@ export async function extractFields(
   // 3.3 Beneficiário
   if (!issuer) issuer = extractIssuerFromBeneficiary(text);
 
-  // 3.4 CNPJ API (último recurso)
+  // 3.4 CNPJ: cache local e, se permitido, API (último recurso)
   if (!issuer && cnpjClean) {
     try {
       let timeoutHandle: any = null;
@@ -312,7 +323,7 @@ export async function extractFields(
         timeoutHandle = setTimeout(() => r(null), 5000);
         if (timeoutHandle && typeof timeoutHandle.unref === 'function') timeoutHandle.unref();
       });
-      const cnpjData = await Promise.race([fetchCNPJData(cnpjClean), timeoutPromise]);
+      const cnpjData = await Promise.race([fetchCNPJData(cnpjClean, options.allowCnpjLookup === true), timeoutPromise]);
       if (timeoutHandle) clearTimeout(timeoutHandle);
       if (cnpjData) issuer = cnpjData.categoria;
     } catch {}
