@@ -1,0 +1,3 @@
+﻿ID;Tipo;Emissor;Referencia;Vencimento;Valor (R$);CNPJ;Pago;Linha Digitavel
+doc_001;BOLETO;ENEL;10/2026;10/11/2026;181,31;61.695.227/0001-93;Nao;
+doc_002;BOLETO;PROLAGOS;10/2026;05/11/2026;462,06;02.382.808/0001-06;Nao;

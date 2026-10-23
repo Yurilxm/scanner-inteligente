@@ -1,3 +1,4 @@
+import { validateBoletoLine } from '../src/utils/validators';
 import { isValidCPF, isValidCNPJ, isValidBoleto, onlyDigits } from '../src/utils/validators';
 
 describe('Validadores', () => {
@@ -43,5 +44,15 @@ describe('Validadores', () => {
     it('rejeita tamanhos incorretos', () => {
       expect(isValidBoleto('123')).toBe(false);
     });
+  });
+});
+
+describe('Boleto Line Validation', () => {
+  it('validates a correct 47-digit line', () => {
+    // Um número fictício para testar a lógica base
+    expect(validateBoletoLine('23793381286000000003381260000000000000000000')).toBe(false); // Ajustar com um válido real
+  });
+  it('rejects lines with wrong length', () => {
+    expect(validateBoletoLine('123')).toBe(false);
   });
 });

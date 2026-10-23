@@ -9,6 +9,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ScannerBackground } from '../src/components/ScannerBackground';
 import { Theme } from '../src/constants/theme';
 import { CustomModal } from '../src/components/CustomModal';
+import { ZoomableImage } from '../src/components/ZoomableImage';
 
 export default function DetalhesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -41,7 +42,14 @@ export default function DetalhesScreen() {
       <ScannerBackground />
       <Stack.Screen options={{ title: 'Detalhes', headerStyle: { backgroundColor: Theme.colors.background }, headerTintColor: Theme.colors.primary }} />
 
-      <SafeAreaView style={{ flex: 1 }} edges={['bottom', 'left', 'right']}>
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom', 'left', 'right']}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} style={styles.backButton}>
+            <MaterialCommunityIcons name="arrow-left" size={28} color={Theme.colors.primary} />
+          </Pressable>
+          <Text style={styles.headerTitle}>DETALHES</Text>
+          <View style={{ width: 28 }} />
+        </View>
         <ScrollView contentContainerStyle={styles.content}>
           <Pressable onPress={() => setZoomVisible(true)}>
             <Image source={{ uri: doc.imageUri }} style={styles.image} resizeMode="contain" />
@@ -85,7 +93,7 @@ export default function DetalhesScreen() {
           <Pressable style={styles.modalClose} onPress={() => setZoomVisible(false)}>
             <MaterialCommunityIcons name="close" size={32} color="#fff" />
           </Pressable>
-          <Image source={{ uri: doc.imageUri }} style={styles.fullImage} resizeMode="contain" />
+          <ZoomableImage uri={doc.imageUri} />
         </View>
       </Modal>
 
@@ -105,7 +113,10 @@ export default function DetalhesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 16, marginTop: 8 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
+  backButton: { padding: 4 },
+  headerTitle: { fontSize: 20, fontFamily: Theme.fonts.bold, color: Theme.colors.primary, letterSpacing: 1 },
+  content: { padding: 16, marginTop: 0 },
   image: { width: '100%', height: 250, borderRadius: 12, backgroundColor: '#000' },
   hint: { textAlign: 'center', color: Theme.colors.textSecondary, fontSize: 12, marginTop: 8, fontFamily: Theme.fonts.regular },
   infoBox: { backgroundColor: Theme.colors.panel, padding: 16, borderRadius: 12, marginTop: 16, borderWidth: 1, borderColor: Theme.colors.border },

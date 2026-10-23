@@ -1,9 +1,11 @@
 import { useState, useCallback, useMemo } from 'react';
-import { View, Text, SectionList, StyleSheet, Pressable, Image, TextInput } from 'react-native';
+import { View, Text, SectionList, StyleSheet, Pressable, Image, TextInput, Modal, ScrollView } from 'react-native';
 import { router, Stack, useFocusEffect } from 'expo-router';
 import { getDocuments, deleteDocumentById, togglePaidStatus, SavedDocument } from '../src/db/database';
-import { exportToCSV, exportToPDF } from '../src/utils/export';
-import { File } from 'expo-file-system';
+import { generateCSVFile, generatePDFFile, shareFile } from '../src/utils/export';
+import { File, Paths } from 'expo-file-system';
+import * as IntentLauncher from 'expo-intent-launcher';
+import * as FS from 'expo-file-system';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -18,6 +20,7 @@ export default function BibliotecaScreen() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('TODAS');
   const [docToDelete, setDocToDelete] = useState<SavedDocument | null>(null);
+  const [csvPreview, setCsvPreview] = useState<{ visible: boolean, content: string, uri: string }>({ visible: false, content: '', uri: '' });
 
   useFocusEffect(
     useCallback(() => {
@@ -43,10 +46,20 @@ export default function BibliotecaScreen() {
 
   const handleExport = async (type: 'csv' | 'pdf') => {
     try {
-      if (type === 'csv') await exportToCSV(documents);
-      else await exportToPDF(documents);
-    } catch {
-      // Podemos usar um toast aqui se necessario
+      if (type === 'csv') {
+        const result = await generateCSVFile(documents);
+        setCsvPreview({ visible: true, content: result.content, uri: result.uri });
+      } else {
+        const result = await generatePDFFile(documents);
+        const contentUri = await FS.getContentUriAsync(result.uri);
+        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+          data: contentUri,
+          flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+          type: 'application/pdf',
+        });
+      }
+    } catch (e) {
+      console.warn('Erro ao exportar:', e);
     }
   };
 
@@ -162,6 +175,29 @@ export default function BibliotecaScreen() {
         )}
       </SafeAreaView>
 
+
+      <Modal visible={csvPreview.visible} transparent animationType="slide">
+        <View style={styles.csvModalContainer}>
+          <View style={styles.csvModalContent}>
+            <Text style={styles.csvModalTitle}>PREVIEW DO CSV</Text>
+            <ScrollView style={styles.csvScroll}>
+              <Text style={styles.csvText}>{csvPreview.content}</Text>
+            </ScrollView>
+            <View style={styles.csvModalActions}>
+              <Pressable style={styles.csvCancelButton} onPress={() => setCsvPreview({ visible: false, content: '', uri: '' })}>
+                <Text style={styles.csvCancelText}>Fechar</Text>
+              </Pressable>
+              <Pressable style={styles.csvShareButton} onPress={async () => {
+                await shareFile(csvPreview.uri, 'text/csv', 'Exportar CSV', 'public.comma-separated-values-text');
+                setCsvPreview({ visible: false, content: '', uri: '' });
+              }}>
+                <Text style={styles.csvShareText}>Compartilhar</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <CustomModal
         visible={!!docToDelete}
         title="Excluir Documento"
@@ -206,4 +242,15 @@ const styles = StyleSheet.create({
   actionButton: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 4 },
   toggleText: { color: Theme.colors.primary, fontSize: 13, fontFamily: Theme.fonts.medium },
   deleteText: { color: Theme.colors.danger, fontSize: 13, fontFamily: Theme.fonts.medium },
+  csvModalContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', padding: 20 },
+  csvModalContent: { backgroundColor: Theme.colors.panel, borderRadius: 12, padding: 16, maxHeight: '80%' },
+  csvModalTitle: { color: Theme.colors.primary, fontSize: 18, fontFamily: Theme.fonts.bold, marginBottom: 12, textAlign: 'center' },
+  csvScroll: { backgroundColor: Theme.colors.background, borderRadius: 8, padding: 12, marginBottom: 16 },
+  csvText: { color: Theme.colors.text, fontFamily: 'monospace', fontSize: 12 },
+  csvModalActions: { flexDirection: 'row', gap: 12 },
+  csvCancelButton: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: Theme.colors.border },
+  csvCancelText: { color: Theme.colors.textSecondary, fontFamily: Theme.fonts.bold },
+  csvShareButton: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', backgroundColor: Theme.colors.primary },
+  csvShareText: { color: Theme.colors.background, fontFamily: Theme.fonts.bold },
+
 });

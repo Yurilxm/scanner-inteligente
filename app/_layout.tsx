@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DocumentProvider } from '../src/context/DocumentContext';
 import { initDatabase } from '../src/db/database';
 import * as SplashScreen from 'expo-splash-screen';
@@ -35,7 +37,9 @@ export default function RootLayout() {
   }
 
   return (
-    <DocumentProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+      <DocumentProvider>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="captura" />
@@ -44,5 +48,7 @@ export default function RootLayout() {
         <Stack.Screen name="detalhes" />
       </Stack>
     </DocumentProvider>
+    </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

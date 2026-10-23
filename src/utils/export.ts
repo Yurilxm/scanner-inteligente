@@ -3,58 +3,43 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { SavedDocument } from '../db/database';
 
-// Gera uma string CSV com padrao brasileiro
 export function generateCSV(documents: SavedDocument[]): string {
-  const BOM = '\uFEFF'; // Excel pt-BR precisa do BOM para ler UTF-8
+  const BOM = '\uFEFF';
   const header = 'ID;Tipo;Emissor;Referencia;Vencimento;Valor (R$);CNPJ;Pago;Linha Digitavel\n';
-
   const rows = documents.map(doc => {
-    const valor = doc.totalAmountCents 
-      ? (doc.totalAmountCents / 100).toFixed(2).replace('.', ',') 
-      : '';
-    
-    // Formata data ISO (aaaa-mm-dd) para dd/mm/aaaa
+    const valor = doc.totalAmountCents ? (doc.totalAmountCents / 100).toFixed(2).replace('.', ',') : '';
     let data = doc.dueDate || '';
     if (data.includes('-')) {
       const [y, m, d] = data.split('-');
       data = `${d}/${m}/${y}`;
     }
-
     return `${doc.id};${doc.documentType};${doc.issuer || ''};${doc.referenceMonth || ''};${data};${valor};${doc.cnpj || ''};${doc.isPaid ? 'Sim' : 'Nao'};${doc.boletoLine || ''}`;
   });
-
   return BOM + header + rows.join('\n');
 }
 
-// Exporta a lista para CSV e abre o menu de compartilhamento
-export async function exportToCSV(documents: SavedDocument[]) {
+export async function generateCSVFile(documents: SavedDocument[]) {
   if (documents.length === 0) throw new Error('Nenhum documento para exportar.');
-
   const csvContent = generateCSV(documents);
   const file = new File(Paths.document, 'relatorio_documentos.csv');
-  
   file.write(csvContent);
+  return { uri: file.uri, content: csvContent };
+}
 
+export async function shareFile(uri: string, mimeType: string, dialogTitle: string, UTI: string) {
   if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(file.uri, {
-      mimeType: 'text/csv',
-      dialogTitle: 'Exportar CSV',
-      UTI: 'public.comma-separated-values-text',
-    });
+    await Sharing.shareAsync(uri, { mimeType, dialogTitle, UTI });
   }
 }
 
-// Exporta a lista para PDF e abre o menu de compartilhamento
-export async function exportToPDF(documents: SavedDocument[]) {
+export async function generatePDFFile(documents: SavedDocument[]) {
   if (documents.length === 0) throw new Error('Nenhum documento para exportar.');
-
   const html = `
     <html>
       <head><meta charset="utf-8"></head>
       <body style="font-family: sans-serif; padding: 20px;">
         <h1>Relatorio de Contas</h1>
         <p>Gerado em: ${new Date().toLocaleDateString('pt-BR')}</p>
-        
         <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
           <tr style="background-color: #f0f0f0;">
             <th style="border: 1px solid #ddd; padding: 8px;">Tipo</th>
@@ -65,9 +50,7 @@ export async function exportToPDF(documents: SavedDocument[]) {
             <th style="border: 1px solid #ddd; padding: 8px;">Status</th>
           </tr>
           ${documents.map(doc => {
-            const valor = doc.totalAmountCents 
-              ? `R$ ${(doc.totalAmountCents / 100).toFixed(2).replace('.', ',')}` 
-              : '-';
+            const valor = doc.totalAmountCents ? `R$ ${(doc.totalAmountCents / 100).toFixed(2).replace('.', ',')}` : '-';
             let data = doc.dueDate || '-';
             if (data.includes('-')) {
               const [y, m, d] = data.split('-');
@@ -88,14 +71,6 @@ export async function exportToPDF(documents: SavedDocument[]) {
       </body>
     </html>
   `;
-
   const { uri } = await Print.printToFileAsync({ html });
-
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(uri, {
-      mimeType: 'application/pdf',
-      dialogTitle: 'Exportar PDF',
-      UTI: 'com.adobe.pdf',
-    });
-  }
+  return { uri };
 }

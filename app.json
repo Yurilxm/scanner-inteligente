@@ -5,11 +5,11 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSCameraUsageDescription": "Permita que o Scanner Inteligente use a câmera para digitalizar documentos."
+        "NSCameraUsageDescription": "Permita que o Control Radar use a c\u00e2mera para digitalizar documentos."
       }
     },
     "android": {
@@ -18,7 +18,11 @@
         "backgroundColor": "#0a0e14"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.yuril.scannerinteligente"
+      "package": "com.yuril.scannerinteligente",
+      "permissions": [
+        "NOTIFICATIONS",
+        "SCHEDULE_EXACT_ALARM"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -35,7 +39,8 @@
         }
       ],
       "expo-font",
-      "expo-splash-screen"
+      "expo-splash-screen",
+      "expo-notifications"
     ],
     "scheme": "scannerinteligente",
     "splash": {

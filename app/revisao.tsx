@@ -13,7 +13,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ScannerBackground } from '../src/components/ScannerBackground';
 import { Theme } from '../src/constants/theme';
 import { CustomModal } from '../src/components/CustomModal';
-import { CustomModal } from '../src/components/CustomModal';
+import { requestNotificationPermissions, scheduleDueDateReminder } from '../src/utils/notifications';
 
 export default function RevisaoScreen() {
   const { imageUri, ocrText, setOcrText, fields, setFields, reset } = useDocument();
@@ -30,8 +30,9 @@ export default function RevisaoScreen() {
   const [editValue, setEditValue] = useState('');
 
   useEffect(() => {
+    requestNotificationPermissions();
     if (!imageUri) {
-      router.replace('/');
+      setIsSuccessVisible(true);
       return;
     }
 
@@ -112,7 +113,7 @@ export default function RevisaoScreen() {
     }
   };
 
-  const onSave = () => {
+  const onSave = async () => {
     if (!fields) return;
 
     // Sincroniza o estado local de volta para o Contexto (se o usuario editou)
@@ -128,6 +129,12 @@ export default function RevisaoScreen() {
 
     try {
       saveDocument(imageUri!, ocrText || '', finalFields);
+      
+      // Agendar a notificação se tiver vencimento e emissor
+      if (finalFields.dueDate && finalFields.issuer) {
+        await scheduleDueDateReminder(`doc_${Date.now()}`, finalFields.issuer, finalFields.dueDate);
+      }
+
       reset();
       // Alerta customizado (simulando um Toast bonito via Modal)
       setIsSuccessVisible(true);
