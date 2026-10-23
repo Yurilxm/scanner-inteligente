@@ -31,6 +31,20 @@ export async function requestNotificationPermissions() {
   return true;
 }
 
+export async function cancelDueDateReminders(docId: string) {
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  const mine = scheduled.filter(n => n.content.data?.docId === docId);
+  await Promise.all(mine.map(n => Notifications.cancelScheduledNotificationAsync(n.identifier)));
+}
+
+// Cancela os lembretes do documento e reagenda só se ainda estiver pendente
+export async function syncDueDateReminders(doc: { id: string; issuer: string | null; dueDate: string | null; isPaid: number }) {
+  await cancelDueDateReminders(doc.id);
+  if (doc.isPaid !== 1 && doc.issuer && doc.dueDate) {
+    await scheduleDueDateReminder(doc.id, doc.issuer, doc.dueDate);
+  }
+}
+
 export async function scheduleDueDateReminder(docId: string, issuer: string, dueDate: string) {
   if (!dueDate) return;
   if (getSetting('notifications_enabled', 'true') !== 'true') return;

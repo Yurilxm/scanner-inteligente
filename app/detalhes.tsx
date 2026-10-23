@@ -11,6 +11,7 @@ import { ScannerBackground } from '../src/components/ScannerBackground';
 import { Theme } from '../src/constants/theme';
 import { CustomModal } from '../src/components/CustomModal';
 import { ZoomableImage } from '../src/components/ZoomableImage';
+import { cancelDueDateReminders, syncDueDateReminders } from '../src/utils/notifications';
 
 export default function DetalhesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -46,7 +47,13 @@ export default function DetalhesScreen() {
       if (file.exists) file.delete();
     } catch {}
     deleteDocumentById(doc.id);
+    cancelDueDateReminders(doc.id).catch(e => console.warn('Erro ao cancelar notificacao', e));
     router.back();
+  };
+
+  const updateDoc = (updated: SavedDocument) => {
+    setDoc(updated);
+    syncDueDateReminders(updated).catch(e => console.warn('Erro ao atualizar notificacao', e));
   };
 
   const handleOpenReclassify = () => {
@@ -70,7 +77,7 @@ export default function DetalhesScreen() {
     if (!reclassifyCategory.trim() || !reclassifyKeyword.trim()) return;
     saveLearnedCategory(reclassifyKeyword.trim(), reclassifyCategory.trim().toUpperCase());
     updateDocumentIssuer(doc.id, reclassifyCategory.trim().toUpperCase());
-    setDoc({ ...doc, issuer: reclassifyCategory.trim().toUpperCase() });
+    updateDoc({ ...doc, issuer: reclassifyCategory.trim().toUpperCase() });
     setReclassifyVisible(false);
   };
 
@@ -83,13 +90,13 @@ export default function DetalhesScreen() {
     const parts = payDateInput.split('/');
     const formattedDate = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : new Date().toISOString().split('T')[0];
     togglePaidStatus(doc.id, doc.isPaid, formattedDate);
-    setDoc({ ...doc, isPaid: 1, paymentDate: formattedDate });
+    updateDoc({ ...doc, isPaid: 1, paymentDate: formattedDate });
     setPayModalVisible(false);
   };
 
   const handleTogglePaid = () => {
     togglePaidStatus(doc.id, doc.isPaid);
-    setDoc({ ...doc, isPaid: doc.isPaid === 1 ? 0 : 1, paymentDate: null });
+    updateDoc({ ...doc, isPaid: doc.isPaid === 1 ? 0 : 1, paymentDate: null });
   };
 
   return (

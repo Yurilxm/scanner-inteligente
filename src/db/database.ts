@@ -14,26 +14,62 @@ export function changeProfile(profile: string) {
   initDatabase();
 }
 
+// ID unico mesmo com dois salvamentos no mesmo milissegundo
+export function generateId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+const DOCUMENTS_SCHEMA = `
+  id TEXT PRIMARY KEY NOT NULL,
+  imageUri TEXT NOT NULL,
+  documentType TEXT NOT NULL,
+  issuer TEXT,
+  referenceMonth TEXT,
+  cnpj TEXT,
+  cpf TEXT,
+  totalAmountCents INTEGER,
+  dueDate TEXT,
+  boletoLine TEXT,
+  ocrText TEXT,
+  isPaid INTEGER DEFAULT 0,
+  paymentDate TEXT,
+  createdAt TEXT NOT NULL
+`;
+
+const SCHEMA_VERSION = 1;
+
+function runMigrations() {
+  const row = db.getFirstSync<{ user_version: number }>('PRAGMA user_version');
+  const version = row?.user_version ?? 0;
+  if (version >= SCHEMA_VERSION) return;
+
+  // v1: o ALTER TABLE antigo criava isPaid/totalAmountCents como TEXT,
+  // fazendo isPaid === 0 falhar. Recria a tabela com os tipos corretos.
+  try {
+    db.execSync(`
+      BEGIN;
+      CREATE TABLE documents_v1 (${DOCUMENTS_SCHEMA});
+      INSERT INTO documents_v1 (id, imageUri, documentType, issuer, referenceMonth, cnpj, cpf, totalAmountCents, dueDate, boletoLine, ocrText, isPaid, paymentDate, createdAt)
+        SELECT id, imageUri, documentType, issuer, referenceMonth, cnpj, cpf,
+          CAST(NULLIF(TRIM(totalAmountCents), '') AS INTEGER),
+          dueDate, boletoLine, ocrText,
+          COALESCE(CAST(NULLIF(TRIM(isPaid), '') AS INTEGER), 0),
+          paymentDate, createdAt
+        FROM documents;
+      DROP TABLE documents;
+      ALTER TABLE documents_v1 RENAME TO documents;
+      PRAGMA user_version = ${SCHEMA_VERSION};
+      COMMIT;
+    `);
+  } catch (e) {
+    try { db.execSync('ROLLBACK;'); } catch {}
+    throw e;
+  }
+}
+
 export function initDatabase() {
   // Tabela de documentos
-  db.execSync(`
-    CREATE TABLE IF NOT EXISTS documents (
-      id TEXT PRIMARY KEY NOT NULL,
-      imageUri TEXT NOT NULL,
-      documentType TEXT NOT NULL,
-      issuer TEXT,
-      referenceMonth TEXT,
-      cnpj TEXT,
-      cpf TEXT,
-      totalAmountCents INTEGER,
-      dueDate TEXT,
-      boletoLine TEXT,
-      ocrText TEXT,
-      isPaid INTEGER DEFAULT 0,
-      paymentDate TEXT,
-      createdAt TEXT NOT NULL
-    );
-  `);
+  db.execSync(`CREATE TABLE IF NOT EXISTS documents (${DOCUMENTS_SCHEMA});`);
 
   // Tabela de cache de CNPJ (para consultas offline)
   db.execSync(`
@@ -66,10 +102,15 @@ export function initDatabase() {
   `);
 
   // Migração segura de colunas antigas
-  const columns = ['issuer', 'referenceMonth', 'dueDate', 'isPaid', 'paymentDate', 'cnpj', 'cpf', 'totalAmountCents', 'boletoLine'];
-  for (const col of columns) {
-    try { db.execSync(`ALTER TABLE documents ADD COLUMN ${col} TEXT;`); } catch {}
+  const columns: [string, string][] = [
+    ['issuer', 'TEXT'], ['referenceMonth', 'TEXT'], ['dueDate', 'TEXT'], ['isPaid', 'INTEGER DEFAULT 0'],
+    ['paymentDate', 'TEXT'], ['cnpj', 'TEXT'], ['cpf', 'TEXT'], ['totalAmountCents', 'INTEGER'], ['boletoLine', 'TEXT'],
+  ];
+  for (const [col, type] of columns) {
+    try { db.execSync(`ALTER TABLE documents ADD COLUMN ${col} ${type};`); } catch {}
   }
+
+  runMigrations();
 }
 
 export type SavedDocument = ExtractedFields & {
@@ -82,7 +123,7 @@ export type SavedDocument = ExtractedFields & {
 };
 
 export function saveDocument(imageUri: string, ocrText: string, fields: ExtractedFields, paymentDate?: string | null): string {
-  const id = Date.now().toString();
+  const id = generateId();
   const createdAt = new Date().toISOString();
   const isPaid = paymentDate ? 1 : 0;
   db.runSync(
@@ -132,7 +173,7 @@ export function setSetting(key: string, value: string): void {
 export function saveLearnedCategory(pattern: string, category: string): void {
   const normalized = pattern.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
   if (!normalized || normalized.length < 3) return;
-  const id = Date.now().toString();
+  const id = generateId();
   db.runSync(
     'INSERT OR REPLACE INTO learned_categories (id, pattern, category, createdAt) VALUES (?, ?, ?, ?)',
     id, normalized, category, new Date().toISOString()

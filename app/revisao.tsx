@@ -202,7 +202,8 @@ export default function RevisaoScreen() {
       const savedId = saveDocument(imageUri!, ocrText || '', finalFields, paymentDateIso);
       
       try {
-        if (finalFields.dueDate && finalFields.issuer) {
+        // Conta salva já paga não precisa de lembrete
+        if (!paymentDateIso && finalFields.dueDate && finalFields.issuer) {
           await scheduleDueDateReminder(savedId, finalFields.issuer, finalFields.dueDate);
         }
       } catch (e) {

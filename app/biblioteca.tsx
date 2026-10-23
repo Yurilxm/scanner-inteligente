@@ -3,6 +3,7 @@ import { View, Text, SectionList, FlatList, StyleSheet, Pressable, Image, TextIn
 import { router, Stack, useFocusEffect } from 'expo-router';
 import { getDocuments, deleteDocumentById, togglePaidStatus, SavedDocument, clearAllData } from '../src/db/database';
 import { generateCSVFile, generatePDFFile, shareFile } from '../src/utils/export';
+import { cancelDueDateReminders, syncDueDateReminders } from '../src/utils/notifications';
 import { File, Paths } from 'expo-file-system';
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as FS from 'expo-file-system';
@@ -36,12 +37,15 @@ export default function BibliotecaScreen() {
       if (file.exists) file.delete();
     } catch {}
     deleteDocumentById(docToDelete.id);
+    cancelDueDateReminders(docToDelete.id).catch(e => console.warn('Erro ao cancelar notificacao', e));
     setDocuments(getDocuments());
     setDocToDelete(null);
   };
 
   const handleTogglePaid = (doc: SavedDocument) => {
     togglePaidStatus(doc.id, doc.isPaid);
+    syncDueDateReminders({ ...doc, isPaid: doc.isPaid === 1 ? 0 : 1 })
+      .catch(e => console.warn('Erro ao atualizar notificacao', e));
     setDocuments(getDocuments());
   };
 
