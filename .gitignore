@@ -43,3 +43,6 @@ yarn-error.*
 # Ferramentas e artefatos locais
 .claude/
 cxx-build/
+
+# Dados temporarios de debug de OCR
+/debug_ocr/

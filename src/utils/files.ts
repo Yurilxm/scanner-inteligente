@@ -1,23 +1,22 @@
-import { Directory, File, Paths } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 export async function saveImageLocally(sourceUri: string): Promise<string> {
   try {
-    const documentsDir = new Directory(Paths.document, 'scans');
+    const dir = `${FileSystem.documentDirectory}scans/`;
+    const dirInfo = await FileSystem.getInfoAsync(dir);
     
-    // Cria a pasta 'scans' se ela nao existir
-    if (!documentsDir.exists) {
-      documentsDir.create();
+    if (!dirInfo.exists) {
+      await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
     }
 
     const filename = `scan_${Date.now()}.jpg`;
-    const sourceFile = new File(sourceUri);
-    const destinationFile = new File(documentsDir, filename);
+    const destUri = `${dir}${filename}`;
 
-    // Copia o arquivo para o diretorio permanente
-    sourceFile.copy(destinationFile);
+    // A API legada copia content:// e file:// sem corromper
+    await FileSystem.copyAsync({ from: sourceUri, to: destUri });
 
-    return destinationFile.uri;
-  } catch {
+    return destUri;
+  } catch (error) {
     throw new Error('Falha ao salvar a imagem localmente');
   }
 }

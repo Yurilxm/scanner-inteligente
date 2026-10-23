@@ -1,27 +1,25 @@
 import { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  ActivityIndicator,
-  Image,
-  Pressable,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-} from 'react-native';
+import { View, Text, TextInput, StyleSheet, ActivityIndicator, Image, Pressable, Alert, KeyboardAvoidingView, Platform, ScrollView, Modal } from 'react-native';
 import { router } from 'expo-router';
 import { File } from 'expo-file-system';
 import { saveDocument } from '../src/db/database';
 import { useDocument } from '../src/context/DocumentContext';
-import { extractTextFromImage } from '../src/utils/ocr';
+import { extractDocumentData, extractRawOcrData } from '../src/utils/ocr';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import { extractFields } from '../src/utils/extractor';
+import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { ScannerBackground } from '../src/components/ScannerBackground';
+import { Theme } from '../src/constants/theme';
+import { CustomModal } from '../src/components/CustomModal';
+import { CustomModal } from '../src/components/CustomModal';
 
 export default function RevisaoScreen() {
   const { imageUri, ocrText, setOcrText, fields, setFields, reset } = useDocument();
   const [isLoading, setIsLoading] = useState(true);
+  const [isImageVisible, setIsImageVisible] = useState(false);
+  const [isSuccessVisible, setIsSuccessVisible] = useState(false);
 
   // Estado local para edicao
   const [editIssuer, setEditIssuer] = useState('');
@@ -43,12 +41,13 @@ export default function RevisaoScreen() {
       try {
         setIsLoading(true);
         // 1. OCR
-        const text = await extractTextFromImage(imageUri!);
+        const rawData = await extractDocumentData(imageUri!);
+        const text = rawData?.text || '';
         
         if (isMounted) {
           setOcrText(text);
-          // 2. Extracao
-          const extracted = extractFields(text);
+          // 2. Extracao usando os blocos (se disponiveis)
+          const extracted = extractFields(rawData);
           setFields(extracted);
 
           // 3. Preenche estado local para edicao
@@ -56,7 +55,8 @@ export default function RevisaoScreen() {
           setEditReference(extracted.referenceMonth || '');
           setEditCnpj(extracted.cnpj || '');
           setEditCpf(extracted.cpf || '');
-          setEditDate(extracted.dueDate || '');
+          // Inverte de AAAA-MM-DD para DD/MM/AAAA
+          setEditDate(extracted.dueDate ? extracted.dueDate.split('-').reverse().join('/') : '');
           setEditValue(extracted.totalAmountCents ? (extracted.totalAmountCents / 100).toFixed(2).replace('.', ',') : '');
         }
       } catch (error) {
@@ -92,6 +92,26 @@ export default function RevisaoScreen() {
     router.replace('/');
   };
 
+  const onDebugOcr = async () => {
+    try {
+      if (!imageUri) return;
+      const rawData = await extractRawOcrData(imageUri);
+      const path = `${FileSystem.documentDirectory}debug_ocr_${Date.now()}.json`;
+      await FileSystem.writeAsStringAsync(path, JSON.stringify(rawData, null, 2));
+      
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(path, {
+          mimeType: 'application/json',
+          dialogTitle: 'Enviar JSON de OCR',
+        });
+      } else {
+        Alert.alert('Erro', 'Compartilhamento indisponivel.');
+      }
+    } catch (e) {
+      Alert.alert('Erro no Debug', String(e));
+    }
+  };
+
   const onSave = () => {
     if (!fields) return;
 
@@ -102,7 +122,7 @@ export default function RevisaoScreen() {
       referenceMonth: editReference || null,
       cnpj: editCnpj || null,
       cpf: editCpf || null,
-      dueDate: editDate || null,
+      dueDate: editDate.includes('/') ? editDate.split('/').reverse().join('-') : editDate || null,
       totalAmountCents: editValue ? Math.round(parseFloat(editValue.replace(',', '.')) * 100) : null,
     };
 
@@ -110,21 +130,32 @@ export default function RevisaoScreen() {
       saveDocument(imageUri!, ocrText || '', finalFields);
       reset();
       // Alerta customizado (simulando um Toast bonito via Modal)
-      Alert.alert('✅ SUCESSO', 'Documento salvo na biblioteca com sucesso!', [{ text: 'Continuar', onPress: () => router.replace('/') }]);
+      setIsSuccessVisible(true);
     } catch {
       Alert.alert('Erro', 'Nao foi possivel salvar o documento.');
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <LinearGradient colors={[Theme.colors.background, Theme.colors.backgroundGradient]} style={styles.container}>
+      <ScannerBackground />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.imageContainer}>
+        <Pressable onPress={() => setIsImageVisible(true)} style={styles.imageContainer}>
           <Image source={{ uri: imageUri }} style={styles.image} resizeMode="contain" />
-        </View>
+        </Pressable>
+
+        <Modal visible={isImageVisible} transparent={true} animationType="fade">
+          <View style={styles.modalContainer}>
+            <Pressable style={styles.modalClose} onPress={() => setIsImageVisible(false)}>
+              <MaterialCommunityIcons name="close" size={32} color="#fff" />
+            </Pressable>
+            <Image source={{ uri: imageUri }} style={styles.fullImage} resizeMode="contain" />
+          </View>
+        </Modal>
 
         {isLoading ? (
           <View style={styles.loadingBox}>
@@ -135,6 +166,10 @@ export default function RevisaoScreen() {
           <View style={styles.formContainer}>
             <Text style={styles.sectionTitle}>Campos Encontrados</Text>
             <Text style={styles.helpText}>Revise e edite os dados abaixo:</Text>
+
+            <Pressable onPress={onDebugOcr} style={{ marginBottom: 16, padding: 8, backgroundColor: '#ff9800', borderRadius: 8, alignItems: 'center' }}>
+              <Text style={{ color: '#fff', fontWeight: 'bold' }}>🐞 SALVAR JSON DO OCR (DEBUG)</Text>
+            </Pressable>
 
             <Text style={styles.label}>Tipo do Documento</Text>
             <Text style={styles.valueText}>{fields?.documentType || 'DESCONHECIDO'}</Text>
@@ -148,11 +183,8 @@ export default function RevisaoScreen() {
             <Text style={styles.label}>CNPJ</Text>
             <TextInput style={styles.input} value={editCnpj} onChangeText={setEditCnpj} keyboardType="numeric" placeholder="Nao encontrado" />
 
-            <Text style={styles.label}>CPF</Text>
-            <TextInput style={styles.input} value={editCpf} onChangeText={setEditCpf} keyboardType="numeric" placeholder="Nao encontrado" />
-
-            <Text style={styles.label}>Data de Vencimento (AAAA-MM-DD)</Text>
-            <TextInput style={styles.input} value={editDate} onChangeText={setEditDate} placeholder="Nao encontrada" />
+            <Text style={styles.label}>Data de Vencimento (DD/MM/AAAA)</Text>
+            <TextInput style={styles.input} value={editDate} onChangeText={setEditDate} placeholder="DD/MM/AAAA" />
 
             <Text style={styles.label}>Valor Total (R$)</Text>
             <TextInput style={styles.input} value={editValue} onChangeText={setEditValue} keyboardType="numeric" placeholder="0,00" />
@@ -178,16 +210,27 @@ export default function RevisaoScreen() {
           <Text style={styles.buttonText}>Salvar Documento</Text>
         </Pressable>
       </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+      <CustomModal
+        visible={isSuccessVisible}
+        title="Sucesso!"
+        message="Documento salvo na biblioteca."
+        confirmText="Continuar"
+        onConfirm={() => {
+          setIsSuccessVisible(false);
+          router.replace('/');
+        }}
+      />
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0B132B' },
+  container: { flex: 1 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 24 },
   imageContainer: {
-    height: 250,
+    height: 200,
     backgroundColor: '#000',
     justifyContent: 'center',
   },
@@ -195,44 +238,48 @@ const styles = StyleSheet.create({
   loadingBox: { padding: 40, alignItems: 'center', justifyContent: 'center' },
   loadingText: { marginTop: 12, color: '#555' },
   formContainer: { padding: 16 },
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#00F5FF', marginTop: 16, marginBottom: 8 },
-  helpText: { fontSize: 13, color: '#A0AAB2', marginBottom: 16 },
-  label: { fontSize: 13, fontWeight: '600', color: '#00F5FF', marginTop: 12, marginBottom: 4 },
-  valueText: { fontSize: 16, color: '#fff', paddingVertical: 4 },
+  sectionTitle: { fontSize: 18, fontFamily: Theme.fonts.bold, color: Theme.colors.primary, marginTop: 16, marginBottom: 8 },
+  helpText: { fontSize: 13, fontFamily: Theme.fonts.regular, color: Theme.colors.textSecondary, marginBottom: 16 },
+  label: { fontSize: 13, fontFamily: Theme.fonts.medium, color: Theme.colors.primary, marginTop: 12, marginBottom: 4 },
+  valueText: { fontSize: 16, fontFamily: Theme.fonts.regular, color: Theme.colors.text, paddingVertical: 4 },
   input: {
     borderWidth: 1,
-    borderColor: '#1C2541',
+    borderColor: Theme.colors.border,
     borderRadius: 8,
     padding: 12,
     fontSize: 15,
-    color: '#fff',
-    backgroundColor: '#1C2541',
+    fontFamily: Theme.fonts.regular,
+    color: Theme.colors.text,
+    backgroundColor: Theme.colors.panel,
   },
   textArea: { height: 150, marginTop: 8 },
+  modalContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center', paddingTop: 50, paddingBottom: 50 },
+  modalClose: { position: 'absolute', top: 40, right: 20, zIndex: 10 },
+  fullImage: { width: '100%', height: '100%' },
   actions: {
     flexDirection: 'row',
     padding: 16,
     borderTopWidth: 1,
-    borderColor: '#1C2541',
+    borderColor: Theme.colors.border,
     gap: 12,
-    backgroundColor: '#0B132B',
+    backgroundColor: Theme.colors.panel,
   },
   button: {
     flex: 1,
-    backgroundColor: '#00F5FF',
+    backgroundColor: Theme.colors.primary,
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
   },
-  buttonText: { color: '#0B132B', fontSize: 16, fontWeight: '900' },
+  buttonText: { color: Theme.colors.background, fontFamily: Theme.fonts.bold, fontSize: 16 },
   buttonSecondary: {
     flex: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: Theme.colors.panel,
     borderWidth: 1,
-    borderColor: '#00F5FF',
+    borderColor: Theme.colors.border,
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
   },
-  buttonTextSecondary: { color: '#00F5FF', fontSize: 16, fontWeight: '600' },
+  buttonTextSecondary: { color: Theme.colors.primary, fontFamily: Theme.fonts.medium, fontSize: 16 },
 });

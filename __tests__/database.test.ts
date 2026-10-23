@@ -1,4 +1,4 @@
-import { initDatabase, saveDocument, getDocuments, deleteDocumentById } from '../src/db/database';
+import { initDatabase, saveDocument, getDocuments, deleteDocumentById, togglePaidStatus } from '../src/db/database';
 import * as SQLite from 'expo-sqlite';
 
 jest.mock('expo-sqlite', () => {
@@ -55,5 +55,24 @@ describe('database', () => {
     deleteDocumentById('123');
     const db = SQLite.openDatabaseSync('scanner.db');
     expect(db.runSync).toHaveBeenCalledWith('DELETE FROM documents WHERE id = ?', '123');
+  });
+
+
+  it('deve alternar o status de pago corretamente', () => {
+    // Mock do runSync para verificar a query
+    const db = SQLite.openDatabaseSync('scanner.db');
+    togglePaidStatus('123', 0); // Marcar como pago
+    expect(db.runSync).toHaveBeenCalledWith(
+      'UPDATE documents SET isPaid = ? WHERE id = ?',
+      1,
+      '123'
+    );
+
+    togglePaidStatus('123', 1); // Desmarcar
+    expect(db.runSync).toHaveBeenCalledWith(
+      'UPDATE documents SET isPaid = ? WHERE id = ?',
+      0,
+      '123'
+    );
   });
 });

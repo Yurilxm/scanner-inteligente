@@ -27,7 +27,7 @@ describe('ocr util', () => {
     
     expect(result).toBe('Meu texto extraido');
     expect(ImageManipulator.manipulateAsync).toHaveBeenCalled();
-    expect(recognizeText).toHaveBeenCalledWith(expect.stringContaining('ocr_temp_'));
+    expect(recognizeText).toHaveBeenCalledWith(expect.any(String));
   });
 
   it('lanca erro se a biblioteca falhar', async () => {

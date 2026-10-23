@@ -53,6 +53,11 @@ export function saveDocument(
   );
 }
 
+export function getDocumentById(id: string): SavedDocument | null {
+  const result = db.getFirstSync<SavedDocument>('SELECT * FROM documents WHERE id = ?', id);
+  return result || null;
+}
+
 export function getDocuments(): SavedDocument[] {
   return db.getAllSync<SavedDocument>('SELECT * FROM documents ORDER BY createdAt DESC');
 }
