@@ -13,7 +13,11 @@ export async function extractDocumentData(uri: string): Promise<any> {
     }
 
     // Copia para o cache para ter um caminho limpo
-    const cachePath = `${FileSystem.cacheDirectory}ocr_input_${Date.now()}.jpg`;
+    const cacheDir = FileSystem.cacheDirectory || FileSystem.documentDirectory;
+    if (!cacheDir) {
+      throw new Error('Diretório de cache indisponível no dispositivo.');
+    }
+    const cachePath = `${cacheDir}ocr_input_${Date.now()}.jpg`;
     await FileSystem.copyAsync({ from: uri, to: cachePath });
 
     let finalPath = cachePath;

@@ -1,9 +1,9 @@
-feat: extracao posicional, consulta CNPJ paralela e cache
+fix: corrige extracao de valor (ruido de CNPJ/data), cache seguro e timers
 
-- Implementada extracao posicional (usa blocos X/Y do ML Kit como fallback)
-- Consulta de CNPJ em paralelo (BrasilAPI + OpenCNPJ + PublicaCNPJ, timeout 4s)
-- Cache de CNPJ no SQLite (validade de 30 dias)
-- CNAE mapeado para Academias, Saude e Juridico
-- Fallback de emissor extrai nome do beneficiario para contas desconhecidas
-- Corrigido NETMAXXI (com dois X e um I)
-- 63 testes automatizados passando
+- Remove CNPJ, CPF, datas e mes/ano antes de buscar valores (evita 34,19 virar valor)
+- Valores inteiros só aceitos com R$ explicito (evita pegar ano 2026 como valor)
+- Fallback de valor exclui anos (1900-2100)
+- _layout.tsx protege boot contra falha do SQLite (try/catch)
+- ocr.ts valida cacheDirectory antes de usar (erro amigavel)
+- Cache CNPJ e timers protegidos (elimina leak de Jest)
+- 63 testes automatizados passando sem leak

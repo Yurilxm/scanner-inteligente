@@ -22,7 +22,11 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    initDatabase();
+    try {
+      initDatabase();
+    } catch (e) {
+      console.error('Falha ao inicializar banco:', e);
+    }
     setDbReady(true);
   }, []);
 
