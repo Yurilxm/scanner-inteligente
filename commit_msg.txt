@@ -1,8 +1,8 @@
-feat: reclassificacao inteligente e configuracoes de notificacao
+test: adiciona testes de estresse de QA (54 testes no total)
 
-- Adicionado botao "Reclassificar e Aprender" na tela de revisao e detalhes
-- Criada tabela learned_categories no SQLite para aprendizado continuo
-- Extrator atualizado para checar o banco de aprendizado antes das regras fixas
-- Criada tela de configuracoes para personalizar notificacoes (dias e frequencia)
-- Adicionado icone de engrenagem na Home
-- 41 testes automatizados passando (incluindo edge cases e OCR pipeline)
+- Testes de migracao e criacao das tabelas settings e learned_categories
+- Testes de fallback do getSetting quando a tabela nao existe
+- Testes de normalizacao de palavras-chave (sem acento, minusculo)
+- Testes de prioridade do aprendizado sobre as regras fixas
+- Testes de configuracao de notificacao (once vs daily, dias antes)
+- Corrigido database.ts para criar todas as tabelas no initDatabase
