@@ -125,3 +125,40 @@ export function deleteDocumentById(id: string): void {
 export function clearAllData(): void {
   db.runSync('DELETE FROM documents');
 }
+
+
+export function saveLearnedCategory(pattern: string, category: string): void {
+  const normalized = pattern.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  if (!normalized || normalized.length < 3) return;
+  const id = Date.now().toString();
+  db.runSync(
+    'INSERT OR REPLACE INTO learned_categories (id, pattern, category, createdAt) VALUES (?, ?, ?, ?)',
+    id, normalized, category, new Date().toISOString()
+  );
+}
+
+export function getLearnedCategories(): { pattern: string; category: string }[] {
+  try {
+    return db.getAllSync<{ pattern: string; category: string }>('SELECT pattern, category FROM learned_categories');
+  } catch {
+    return [];
+  }
+}
+
+export function updateDocumentIssuer(id: string, newIssuer: string): void {
+  db.runSync('UPDATE documents SET issuer = ? WHERE id = ?', newIssuer, id);
+}
+
+
+export function getSetting(key: string, defaultValue: string): string {
+  try {
+    const row = db.getFirstSync<{ value: string }>('SELECT value FROM settings WHERE key = ?', key);
+    return row ? row.value : defaultValue;
+  } catch {
+    return defaultValue;
+  }
+}
+
+export function setSetting(key: string, value: string): void {
+  db.runSync('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', key, value);
+}

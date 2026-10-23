@@ -46,6 +46,7 @@ export default function RootLayout() {
         <Stack.Screen name="revisao" />
         <Stack.Screen name="biblioteca" />
         <Stack.Screen name="detalhes" />
+        <Stack.Screen name="configuracoes" />
       </Stack>
     </DocumentProvider>
     </SafeAreaProvider>

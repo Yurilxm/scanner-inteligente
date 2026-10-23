@@ -4,7 +4,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ZoomableImage } from '../src/components/ZoomableImage';
 import { router } from 'expo-router';
 import { File } from 'expo-file-system';
-import { saveDocument } from '../src/db/database';
+import { saveDocument, getLearnedCategories, saveLearnedCategory } from '../src/db/database';
 import { useDocument } from '../src/context/DocumentContext';
 import { extractDocumentData, extractRawOcrData } from '../src/utils/ocr';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -39,6 +39,9 @@ export default function RevisaoScreen() {
   const [editDate, setEditDate] = useState('');
   const [editValue, setEditValue] = useState('');
   const [editPaymentDate, setEditPaymentDate] = useState('');
+  const [reclassifyVisible, setReclassifyVisible] = useState(false);
+  const [reclassifyCategory, setReclassifyCategory] = useState('');
+  const [reclassifyKeyword, setReclassifyKeyword] = useState('');
 
   useEffect(() => {
     const onBackPress = () => {
@@ -71,7 +74,7 @@ export default function RevisaoScreen() {
         if (isMounted) {
           setOcrText(text);
           // 2. Extracao usando os blocos (se disponiveis)
-          const extracted = extractFields(rawData);
+          const extracted = extractFields(rawData, getLearnedCategories());
           setFields(extracted);
 
           // 3. Preenche estado local para edicao
@@ -103,6 +106,21 @@ export default function RevisaoScreen() {
   }, [imageUri, setOcrText, setFields]);
 
   if (!imageUri) return null;
+
+  const handleOpenReclassify = () => {
+    setReclassifyCategory(editIssuer || '');
+    // Tenta sugerir uma palavra baseada no OCR
+    const words = (ocrText || '').split(/\s+/).filter(w => w.length > 4 && /^[A-Za-z]+$/.test(w));
+    setReclassifyKeyword(words.length > 0 ? words[0].toUpperCase() : '');
+    setReclassifyVisible(true);
+  };
+
+  const handleSaveReclassify = () => {
+    if (!reclassifyCategory.trim() || !reclassifyKeyword.trim()) return;
+    saveLearnedCategory(reclassifyKeyword.trim(), reclassifyCategory.trim().toUpperCase());
+    setEditIssuer(reclassifyCategory.trim().toUpperCase());
+    setReclassifyVisible(false);
+  };
 
   const onCancel = async () => {
     try {
@@ -219,7 +237,12 @@ export default function RevisaoScreen() {
             <Text style={styles.label}>Tipo do Documento</Text>
             <Text style={styles.valueText}>{fields?.documentType || 'DESCONHECIDO'}</Text>
 
-            <Text style={styles.label}>Emissor (Ex: Enel, Prolagos)</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, marginBottom: 4 }}>
+              <Text style={styles.label}>Emissor</Text>
+              <Pressable onPress={handleOpenReclassify}>
+                <Text style={{ color: Theme.colors.primary, fontSize: 12, fontFamily: Theme.fonts.bold }}>Reclassificar e Aprender</Text>
+              </Pressable>
+            </View>
             <TextInput style={styles.input} value={editIssuer} onChangeText={setEditIssuer} placeholder="Nao encontrado" />
 
             <Text style={styles.label}>Referencia (Ex: 10/2026)</Text>
@@ -259,6 +282,45 @@ export default function RevisaoScreen() {
         </Pressable>
       </View>
       </KeyboardAvoidingView>
+
+      <Modal visible={reclassifyVisible} transparent animationType="fade">
+        <View style={styles.modalContainer}>
+          <View style={styles.payModalBox}>
+            <Text style={styles.payModalTitle}>Reclassificar e Aprender</Text>
+            <Text style={{ color: Theme.colors.textSecondary, fontSize: 12, marginBottom: 12, textAlign: 'center' }}>
+              Vou aprender que boletos com esta palavra-chave pertencem a esta categoria.
+            </Text>
+
+            <Text style={styles.label}>Nome da Categoria</Text>
+            <TextInput
+              style={styles.input}
+              value={reclassifyCategory}
+              onChangeText={setReclassifyCategory}
+              placeholder="Ex: CONDOMINIO CISNE BRANCO"
+              autoCapitalize="characters"
+            />
+
+            <Text style={styles.label}>Palavra-chave (padrão)</Text>
+            <TextInput
+              style={styles.input}
+              value={reclassifyKeyword}
+              onChangeText={setReclassifyKeyword}
+              placeholder="Ex: CISNE BRANCO"
+              autoCapitalize="characters"
+            />
+
+            <View style={styles.payActions}>
+              <Pressable style={styles.payCancel} onPress={() => setReclassifyVisible(false)}>
+                <Text style={styles.payCancelText}>Cancelar</Text>
+              </Pressable>
+              <Pressable style={styles.payConfirm} onPress={handleSaveReclassify}>
+                <Text style={styles.payConfirmText}>Aprender</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <CustomModal
         visible={isSuccessVisible}
         title="Sucesso!"
@@ -334,4 +396,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   buttonTextSecondary: { color: Theme.colors.primary, fontFamily: Theme.fonts.medium, fontSize: 16 },
+
+  payModalBox: { backgroundColor: Theme.colors.panel, padding: 20, borderRadius: 12, width: '80%', borderWidth: 1, borderColor: Theme.colors.border },
+  payModalTitle: { fontSize: 18, fontFamily: Theme.fonts.bold, color: Theme.colors.primary, marginBottom: 16, textAlign: 'center' },
+  payActions: { flexDirection: 'row', gap: 12, marginTop: 16 },
+  payCancel: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: Theme.colors.border },
+  payCancelText: { color: Theme.colors.textSecondary, fontFamily: Theme.fonts.bold },
+  payConfirm: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', backgroundColor: Theme.colors.primary },
+  payConfirmText: { color: Theme.colors.background, fontFamily: Theme.fonts.bold },
 });

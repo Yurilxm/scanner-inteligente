@@ -21,6 +21,13 @@ export default function HomeScreen() {
     <LinearGradient colors={[Theme.colors.background, Theme.colors.backgroundGradient]} style={styles.container}>
       <ScannerBackground />
 
+      <Pressable
+        style={{ position: 'absolute', top: 60, right: 20, zIndex: 10, padding: 8 }}
+        onPress={() => router.push('/configuracoes')}
+      >
+        <MaterialCommunityIcons name="cog" size={28} color={Theme.colors.primary} />
+      </Pressable>
+
       <View style={styles.content}>
         <MaterialCommunityIcons name="radar" size={64} color={Theme.colors.primary} style={styles.icon} />
         <Text style={styles.title}>{APP_NAME.toUpperCase()}</Text>

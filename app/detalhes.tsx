@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, Pressable, ScrollView, Modal, TextInput, BackHandler } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { getDocumentById, deleteDocumentById, togglePaidStatus, SavedDocument } from '../src/db/database';
+import { getDocumentById, deleteDocumentById, togglePaidStatus, saveLearnedCategory, updateDocumentIssuer, SavedDocument } from '../src/db/database';
 import { File } from 'expo-file-system';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,6 +19,9 @@ export default function DetalhesScreen() {
   const [deleteVisible, setDeleteVisible] = useState(false);
   const [payModalVisible, setPayModalVisible] = useState(false);
   const [payDateInput, setPayDateInput] = useState('');
+  const [reclassifyVisible, setReclassifyVisible] = useState(false);
+  const [reclassifyCategory, setReclassifyCategory] = useState('');
+  const [reclassifyKeyword, setReclassifyKeyword] = useState('');
 
   useEffect(() => {
     if (id) setDoc(getDocumentById(id));
@@ -44,6 +47,22 @@ export default function DetalhesScreen() {
     } catch {}
     deleteDocumentById(doc.id);
     router.back();
+  };
+
+  const handleOpenReclassify = () => {
+    setReclassifyCategory(doc.issuer || '');
+    // Sugere uma palavra-chave baseada no texto do OCR
+    const words = (doc.ocrText || '').split(/\s+/).filter(w => w.length > 4 && /^[A-Za-z]+$/.test(w));
+    setReclassifyKeyword(words.length > 0 ? words[0].toUpperCase() : '');
+    setReclassifyVisible(true);
+  };
+
+  const handleSaveReclassify = () => {
+    if (!reclassifyCategory.trim() || !reclassifyKeyword.trim()) return;
+    saveLearnedCategory(reclassifyKeyword.trim(), reclassifyCategory.trim().toUpperCase());
+    updateDocumentIssuer(doc.id, reclassifyCategory.trim().toUpperCase());
+    setDoc({ ...doc, issuer: reclassifyCategory.trim().toUpperCase() });
+    setReclassifyVisible(false);
   };
 
   const handleOpenPayModal = () => {
@@ -114,6 +133,10 @@ export default function DetalhesScreen() {
             <Text style={styles.toggleText}>{doc.isPaid ? 'Desmarcar Pago' : 'Marcar como Pago'}</Text>
           </Pressable>
 
+          <Pressable style={styles.reclassifyButton} onPress={handleOpenReclassify}>
+            <Text style={styles.reclassifyText}>Reclassificar Conta</Text>
+          </Pressable>
+
           <Pressable style={styles.deleteButton} onPress={() => setDeleteVisible(true)}>
             <Text style={styles.deleteText}>Excluir Documento</Text>
           </Pressable>
@@ -154,6 +177,45 @@ export default function DetalhesScreen() {
         </View>
       </Modal>
 
+
+      <Modal visible={reclassifyVisible} transparent animationType="fade">
+        <View style={styles.modalContainer}>
+          <View style={styles.payModalBox}>
+            <Text style={styles.payModalTitle}>Reclassificar Conta</Text>
+            <Text style={{ color: Theme.colors.textSecondary, fontSize: 12, marginBottom: 12, textAlign: 'center' }}>
+              Vou aprender que boletos com esta palavra-chave pertencem a esta categoria.
+            </Text>
+
+            <Text style={styles.label}>Nome da Categoria</Text>
+            <TextInput
+              style={styles.payInput}
+              value={reclassifyCategory}
+              onChangeText={setReclassifyCategory}
+              placeholder="Ex: CONDOMINIO CISNE BRANCO"
+              autoCapitalize="characters"
+            />
+
+            <Text style={styles.label}>Palavra-chave (padrão)</Text>
+            <TextInput
+              style={styles.payInput}
+              value={reclassifyKeyword}
+              onChangeText={setReclassifyKeyword}
+              placeholder="Ex: CISNE BRANCO"
+              autoCapitalize="characters"
+            />
+
+            <View style={styles.payActions}>
+              <Pressable style={styles.payCancel} onPress={() => setReclassifyVisible(false)}>
+                <Text style={styles.payCancelText}>Cancelar</Text>
+              </Pressable>
+              <Pressable style={styles.payConfirm} onPress={handleSaveReclassify}>
+                <Text style={styles.payConfirmText}>Salvar</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <CustomModal
         visible={deleteVisible}
         title="Excluir Documento"
@@ -181,6 +243,9 @@ const styles = StyleSheet.create({
   value: { color: Theme.colors.text, fontSize: 16, fontFamily: Theme.fonts.regular },
   toggleButton: { backgroundColor: Theme.colors.primary, padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 24 },
   toggleText: { fontFamily: Theme.fonts.bold, color: Theme.colors.background, fontSize: 16 },
+
+  reclassifyButton: { padding: 16, alignItems: 'center', marginTop: 8, borderWidth: 1, borderColor: Theme.colors.primary, borderRadius: 12 },
+  reclassifyText: { fontFamily: Theme.fonts.medium, color: Theme.colors.primary, fontSize: 16 },
   deleteButton: { padding: 16, alignItems: 'center', marginTop: 8 },
   deleteText: { fontFamily: Theme.fonts.medium, color: Theme.colors.danger, fontSize: 16 },
   modalContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center', paddingTop: 50, paddingBottom: 50 },

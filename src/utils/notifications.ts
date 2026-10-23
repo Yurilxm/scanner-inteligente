@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { getSetting } from '../db/database';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -35,18 +36,41 @@ export async function scheduleDueDateReminder(docId: string, issuer: string, due
   const [year, month, day] = dueDate.split('-').map(Number);
   const due = new Date(year, month - 1, day);
   
-  const reminderDate = new Date(due);
-  reminderDate.setDate(reminderDate.getDate() - 5);
-  reminderDate.setHours(9, 0, 0, 0); // 9h da manhã
+  const daysBefore = parseInt(getSetting('notification_days_before', '5'), 10) || 5;
+  const frequency = getSetting('notification_frequency', 'once');
+  
+  if (frequency === 'once') {
+    const reminderDate = new Date(due);
+    reminderDate.setDate(reminderDate.getDate() - daysBefore);
+    reminderDate.setHours(9, 0, 0, 0);
+    
+    if (reminderDate.getTime() <= Date.now()) return;
 
-  if (reminderDate.getTime() <= Date.now()) return;
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: '⏰ Conta a Vencer!',
+        body: `A conta ${issuer} vence em ${daysBefore} dias (${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}).`,
+        data: { docId },
+      },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: reminderDate },
+    });
+  } else {
+    // Daily: agenda uma notificação para cada dia dos últimos N dias
+    for (let i = daysBefore; i >= 1; i--) {
+      const reminderDate = new Date(due);
+      reminderDate.setDate(reminderDate.getDate() - i);
+      reminderDate.setHours(9, 0, 0, 0);
+      
+      if (reminderDate.getTime() <= Date.now()) continue;
 
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: '⏰ Conta a Vencer!',
-      body: `A conta ${issuer} vence em 5 dias (${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${year}).`,
-      data: { docId },
-    },
-    trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: reminderDate },
-  });
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: '⏰ Conta a Vencer!',
+          body: `Faltam ${i} dias para o vencimento da conta ${issuer} (${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}).`,
+          data: { docId },
+        },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: reminderDate },
+      });
+    }
+  }
 }
