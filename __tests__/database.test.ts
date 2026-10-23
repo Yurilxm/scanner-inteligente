@@ -47,6 +47,7 @@ describe('database', () => {
       null,
       'Texto OCR',
       0,
+      null,
       expect.any(String)
     );
   });

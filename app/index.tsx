@@ -5,16 +5,31 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ScannerBackground } from '../src/components/ScannerBackground';
 import { Theme } from '../src/constants/theme';
 import { APP_NAME } from '../src/constants';
+import { getCurrentProfile, changeProfile } from '../src/db/database';
+import { useState } from 'react';
 
 export default function HomeScreen() {
+  const [profile, setProfile] = useState(getCurrentProfile());
+
+  const handleToggleProfile = () => {
+    const next = profile === 'yuri' ? 'mae' : 'yuri';
+    changeProfile(next);
+    setProfile(next);
+  };
+
   return (
     <LinearGradient colors={[Theme.colors.background, Theme.colors.backgroundGradient]} style={styles.container}>
       <ScannerBackground />
-      
+
       <View style={styles.content}>
         <MaterialCommunityIcons name="radar" size={64} color={Theme.colors.primary} style={styles.icon} />
         <Text style={styles.title}>{APP_NAME.toUpperCase()}</Text>
         <Text style={styles.subtitle}>Monitore, digitalize e organize suas contas.</Text>
+
+        <Pressable style={styles.profileButton} onPress={handleToggleProfile}>
+          <MaterialCommunityIcons name="account-switch" size={20} color={Theme.colors.background} />
+          <Text style={styles.profileText}>Perfil: {profile === 'yuri' ? 'YURI' : 'MÃE'}</Text>
+        </Pressable>
 
         <Pressable
           style={styles.button}
@@ -43,7 +58,9 @@ const styles = StyleSheet.create({
   content: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   icon: { marginBottom: 16, textShadowColor: Theme.colors.primary, textShadowRadius: 20 },
   title: { fontSize: 32, fontFamily: Theme.fonts.bold, color: Theme.colors.primary, marginBottom: 8, letterSpacing: 2 },
-  subtitle: { fontSize: 16, fontFamily: Theme.fonts.regular, color: Theme.colors.textSecondary, textAlign: 'center', marginBottom: 48 },
+  subtitle: { fontSize: 16, fontFamily: Theme.fonts.regular, color: Theme.colors.textSecondary, textAlign: 'center', marginBottom: 24 },
+  profileButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: Theme.colors.primary, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, marginBottom: 32, gap: 8 },
+  profileText: { color: Theme.colors.background, fontFamily: Theme.fonts.bold, fontSize: 14 },
   button: { width: '100%', maxWidth: 320, borderRadius: 12, marginBottom: 16, overflow: 'hidden' },
   buttonGradient: { paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   buttonText: { color: Theme.colors.background, fontSize: 16, fontFamily: Theme.fonts.bold, letterSpacing: 1 },

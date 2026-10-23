@@ -1,14 +1,12 @@
-feat: data de pagamento, notificacoes, zoom e automacao excel
+feat: perfis de usuario, data de pagamento e correcoes de UI/UX
 
+- Implementado sistema de perfis separados (Yuri e Mae) com bancos SQLite independentes
+- Adicionado seletor de perfil na tela Home
 - Adicionado campo e modal de Data de Pagamento manual
-- Implementado sistema de notificacoes locais (5 dias antes do vencimento)
-- Adicionado zoom (pinca e toque duplo) na imagem de detalhes
-- Adicionado preview de PDF (leitor nativo) e CSV (modal) antes de compartilhar
-- Criado script Python para atualizar a planilha Excel a partir do CSV exportado
-- Adicionado modal customizado de sucesso ao salvar documento
-- Corrigido SafeArea e adicionado botoes de voltar customizados nas telas
-- Atualizado icone, nome do app e suporte a dark mode nativo (expo-system-ui)
-- Implementada validacao de linha digitavel (Modulos 10 e 11)
-- Removido botao de debug de OCR (JSON)
-- Atualizado README.md com as novas funcionalidades e workarounds
-- Adicionados novos testes automatizados (30 testes passando)
+- Corrigido preview de CSV com layout legivel em formato de cards
+- Implementado fallback de PDF para o visualizador nativo do Android
+- Corrigido bug da tela branca ao salvar documento
+- Corrigido conflito de gestos no Zoom da imagem
+- Removido botao de debug de OCR da tela de revisao
+- Adicionados 7 novos testes automatizados (33 testes passando no total)
+- Atualizado README.md com as novas funcionalidades

@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
-import { View, Text, SectionList, StyleSheet, Pressable, Image, TextInput, Modal, ScrollView } from 'react-native';
+import { View, Text, SectionList, StyleSheet, Pressable, Image, TextInput, Modal, ScrollView, Alert } from 'react-native';
 import { router, Stack, useFocusEffect } from 'expo-router';
-import { getDocuments, deleteDocumentById, togglePaidStatus, SavedDocument } from '../src/db/database';
+import { getDocuments, deleteDocumentById, togglePaidStatus, SavedDocument, clearAllData } from '../src/db/database';
 import { generateCSVFile, generatePDFFile, shareFile } from '../src/utils/export';
 import { File, Paths } from 'expo-file-system';
 import * as IntentLauncher from 'expo-intent-launcher';
@@ -51,12 +51,17 @@ export default function BibliotecaScreen() {
         setCsvPreview({ visible: true, content: result.content, uri: result.uri });
       } else {
         const result = await generatePDFFile(documents);
-        const contentUri = await FS.getContentUriAsync(result.uri);
-        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
-          data: contentUri,
-          flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
-          type: 'application/pdf',
-        });
+        try {
+          const contentUri = await FS.getContentUriAsync(result.uri);
+          await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+            data: contentUri,
+            flags: 1,
+            type: 'application/pdf',
+          });
+        } catch (e) {
+          // Fallback: Se o Android nao tiver visualizador padrao, abre o compartilhamento (que tem opcao de visualizar)
+          await shareFile(result.uri, 'application/pdf', 'Visualizar PDF', 'com.adobe.pdf');
+        }
       }
     } catch (e) {
       console.warn('Erro ao exportar:', e);
@@ -179,9 +184,20 @@ export default function BibliotecaScreen() {
       <Modal visible={csvPreview.visible} transparent animationType="slide">
         <View style={styles.csvModalContainer}>
           <View style={styles.csvModalContent}>
-            <Text style={styles.csvModalTitle}>PREVIEW DO CSV</Text>
+            <Text style={styles.csvModalTitle}>PREVIEW DO RELATÓRIO</Text>
             <ScrollView style={styles.csvScroll}>
-              <Text style={styles.csvText}>{csvPreview.content}</Text>
+              {csvPreview.content.split('\n').filter(l => l.trim() !== '').map((linha, index) => {
+                if (index === 0) return null; // Pula o cabeçalho
+                const cols = linha.replace('\uFEFF', '').split(';');
+                if (cols.length < 5) return null;
+                return (
+                  <View key={index} style={styles.csvCard}>
+                    <Text style={styles.csvCardTitle}>{cols[2]} - {cols[1]}</Text>
+                    <Text style={styles.csvCardText}>Ref: {cols[3]} | Venc: {cols[4]}</Text>
+                    <Text style={styles.csvCardValue}>R$ {cols[5]}</Text>
+                  </View>
+                );
+              })}
             </ScrollView>
             <View style={styles.csvModalActions}>
               <Pressable style={styles.csvCancelButton} onPress={() => setCsvPreview({ visible: false, content: '', uri: '' })}>
@@ -246,7 +262,10 @@ const styles = StyleSheet.create({
   csvModalContent: { backgroundColor: Theme.colors.panel, borderRadius: 12, padding: 16, maxHeight: '80%' },
   csvModalTitle: { color: Theme.colors.primary, fontSize: 18, fontFamily: Theme.fonts.bold, marginBottom: 12, textAlign: 'center' },
   csvScroll: { backgroundColor: Theme.colors.background, borderRadius: 8, padding: 12, marginBottom: 16 },
-  csvText: { color: Theme.colors.text, fontFamily: 'monospace', fontSize: 12 },
+  csvCard: { backgroundColor: Theme.colors.panel, padding: 12, borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: Theme.colors.border },
+  csvCardTitle: { color: Theme.colors.primary, fontFamily: Theme.fonts.bold, fontSize: 14 },
+  csvCardText: { color: Theme.colors.textSecondary, fontSize: 12, marginTop: 4 },
+  csvCardValue: { color: Theme.colors.success, fontFamily: Theme.fonts.bold, fontSize: 14, marginTop: 4 },
   csvModalActions: { flexDirection: 'row', gap: 12 },
   csvCancelButton: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: Theme.colors.border },
   csvCancelText: { color: Theme.colors.textSecondary, fontFamily: Theme.fonts.bold },

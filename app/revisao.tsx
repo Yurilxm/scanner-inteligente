@@ -28,6 +28,7 @@ export default function RevisaoScreen() {
   const [editCpf, setEditCpf] = useState('');
   const [editDate, setEditDate] = useState('');
   const [editValue, setEditValue] = useState('');
+  const [editPaymentDate, setEditPaymentDate] = useState('');
 
   useEffect(() => {
     requestNotificationPermissions();
@@ -90,7 +91,7 @@ export default function RevisaoScreen() {
       // Ignora erro silencioso se o arquivo ja sumiu
     }
     reset();
-    router.replace('/');
+    router.replace('/biblioteca');
   };
 
   const onDebugOcr = async () => {
@@ -128,15 +129,23 @@ export default function RevisaoScreen() {
     };
 
     try {
-      saveDocument(imageUri!, ocrText || '', finalFields);
+      let paymentDateIso = null;
+      if (editPaymentDate) {
+        const parts = editPaymentDate.split('/');
+        if (parts.length === 3) paymentDateIso = `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+
+      const savedId = saveDocument(imageUri!, ocrText || '', finalFields, paymentDateIso);
       
-      // Agendar a notificação se tiver vencimento e emissor
-      if (finalFields.dueDate && finalFields.issuer) {
-        await scheduleDueDateReminder(`doc_${Date.now()}`, finalFields.issuer, finalFields.dueDate);
+      try {
+        if (finalFields.dueDate && finalFields.issuer) {
+          await scheduleDueDateReminder(savedId, finalFields.issuer, finalFields.dueDate);
+        }
+      } catch (e) {
+        console.warn("Erro ao agendar notificacao", e);
       }
 
       reset();
-      // Alerta customizado (simulando um Toast bonito via Modal)
       setIsSuccessVisible(true);
     } catch {
       Alert.alert('Erro', 'Nao foi possivel salvar o documento.');
@@ -174,9 +183,7 @@ export default function RevisaoScreen() {
             <Text style={styles.sectionTitle}>Campos Encontrados</Text>
             <Text style={styles.helpText}>Revise e edite os dados abaixo:</Text>
 
-            <Pressable onPress={onDebugOcr} style={{ marginBottom: 16, padding: 8, backgroundColor: '#ff9800', borderRadius: 8, alignItems: 'center' }}>
-              <Text style={{ color: '#fff', fontWeight: 'bold' }}>🐞 SALVAR JSON DO OCR (DEBUG)</Text>
-            </Pressable>
+            
 
             <Text style={styles.label}>Tipo do Documento</Text>
             <Text style={styles.valueText}>{fields?.documentType || 'DESCONHECIDO'}</Text>
@@ -195,6 +202,9 @@ export default function RevisaoScreen() {
 
             <Text style={styles.label}>Valor Total (R$)</Text>
             <TextInput style={styles.input} value={editValue} onChangeText={setEditValue} keyboardType="numeric" placeholder="0,00" />
+
+            <Text style={styles.label}>Data de Pagamento (Opcional)</Text>
+            <TextInput style={styles.input} value={editPaymentDate} onChangeText={setEditPaymentDate} placeholder="DD/MM/AAAA (Deixe vazio se não pago)" />
 
             <Text style={styles.sectionTitle}>Texto Completo (OCR)</Text>
             <TextInput
@@ -225,7 +235,7 @@ export default function RevisaoScreen() {
         confirmText="Continuar"
         onConfirm={() => {
           setIsSuccessVisible(false);
-          router.replace('/');
+          router.replace('/biblioteca');
         }}
       />
     </LinearGradient>

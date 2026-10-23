@@ -9,7 +9,8 @@ jest.mock('react-native-gesture-handler', () => {
       Pinch: () => ({ onUpdate: () => ({ onEnd: () => {} }) }),
       Pan: () => ({ onUpdate: () => ({ onEnd: () => {} }) }),
       Tap: () => ({ numberOfTaps: () => ({ onEnd: () => {} }) }),
-      Race: () => {}
+      Race: () => {},
+      Simultaneous: () => ({})
     },
   };
 });

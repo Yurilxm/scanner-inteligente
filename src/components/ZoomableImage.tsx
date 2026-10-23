@@ -1,5 +1,5 @@
 import React from 'react';
-import { Image } from 'react-native';
+import { Image, StyleSheet } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 
@@ -18,7 +18,6 @@ export function ZoomableImage({ uri }: { uri: string }) {
       scale.value = savedScale.value * e.scale;
     })
     .onEnd(() => {
-      savedScale.value = scale.value;
       if (scale.value < 1) {
         scale.value = withSpring(1);
         savedScale.value = 1;
@@ -26,6 +25,8 @@ export function ZoomableImage({ uri }: { uri: string }) {
         translateY.value = withSpring(0);
         savedTranslateX.value = 0;
         savedTranslateY.value = 0;
+      } else {
+        savedScale.value = scale.value;
       }
     });
 
@@ -65,9 +66,16 @@ export function ZoomableImage({ uri }: { uri: string }) {
     ],
   }));
 
+  // Simultaneous permite fazer pinça e arrastar ao mesmo tempo, e o Race com o double tap para não conflitar
+  const composed = Gesture.Simultaneous(pinchGesture, panGesture, Gesture.Race(doubleTap));
+
   return (
-    <GestureDetector gesture={Gesture.Race(pinchGesture, panGesture, doubleTap)}>
-      <AnimatedImage source={{ uri }} style={[{ width: '100%', height: '100%' }, animatedStyle]} resizeMode="contain" />
+    <GestureDetector gesture={composed}>
+      <AnimatedImage source={{ uri }} style={[styles.image, animatedStyle]} resizeMode="contain" />
     </GestureDetector>
   );
 }
+
+const styles = StyleSheet.create({
+  image: { width: '100%', height: '100%' },
+});

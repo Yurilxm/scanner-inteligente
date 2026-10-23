@@ -1,7 +1,18 @@
 import * as SQLite from 'expo-sqlite';
 import { ExtractedFields } from '../types/document';
 
-const db = SQLite.openDatabaseSync('scanner.db');
+let currentProfile = 'yuri';
+let db = SQLite.openDatabaseSync(`scanner_${currentProfile}.db`);
+
+export function getCurrentProfile() { return currentProfile; }
+
+export function changeProfile(profile: string) {
+  if (currentProfile === profile) return;
+  db.closeSync();
+  currentProfile = profile;
+  db = SQLite.openDatabaseSync(`scanner_${currentProfile}.db`);
+  initDatabase();
+}
 
 export function initDatabase() {
   db.execSync(`
@@ -40,17 +51,19 @@ export type SavedDocument = ExtractedFields & {
 export function saveDocument(
   imageUri: string,
   ocrText: string,
-  fields: ExtractedFields
-): void {
+  fields: ExtractedFields,
+  paymentDate?: string | null
+): string {
   const id = Date.now().toString();
   const createdAt = new Date().toISOString();
-  const isPaid = 0;
+  const isPaid = paymentDate ? 1 : 0;
 
   db.runSync(
-    `INSERT INTO documents (id, imageUri, documentType, issuer, referenceMonth, cnpj, cpf, totalAmountCents, dueDate, boletoLine, ocrText, isPaid, createdAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, imageUri, fields.documentType, fields.issuer, fields.referenceMonth, fields.cnpj, fields.cpf, fields.totalAmountCents, fields.dueDate, fields.boletoLine, ocrText, isPaid, createdAt
+    `INSERT INTO documents (id, imageUri, documentType, issuer, referenceMonth, cnpj, cpf, totalAmountCents, dueDate, boletoLine, ocrText, isPaid, paymentDate, createdAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id, imageUri, fields.documentType, fields.issuer, fields.referenceMonth, fields.cnpj, fields.cpf, fields.totalAmountCents, fields.dueDate, fields.boletoLine, ocrText, isPaid, paymentDate || null, createdAt
   );
+  return id;
 }
 
 export function getDocumentById(id: string): SavedDocument | null {
@@ -69,4 +82,9 @@ export function togglePaidStatus(id: string, currentStatus: number): void {
 
 export function deleteDocumentById(id: string): void {
   db.runSync('DELETE FROM documents WHERE id = ?', id);
+}
+
+
+export function clearAllData(): void {
+  db.runSync('DELETE FROM documents');
 }
