@@ -1,9 +1,13 @@
-fix: corrige extracao de valor (ruido de CNPJ/data), cache seguro e timers
+fix: auditoria completa - 10 correcoes criticas, medias e baixas
 
-- Remove CNPJ, CPF, datas e mes/ano antes de buscar valores (evita 34,19 virar valor)
-- Valores inteiros só aceitos com R$ explicito (evita pegar ano 2026 como valor)
-- Fallback de valor exclui anos (1900-2100)
-- _layout.tsx protege boot contra falha do SQLite (try/catch)
-- ocr.ts valida cacheDirectory antes de usar (erro amigavel)
-- Cache CNPJ e timers protegidos (elimina leak de Jest)
-- 63 testes automatizados passando sem leak
+- CSV escapa ; e " (Excel nao quebra mais com emissores compostos)
+- PDF escapa HTML (evita quebra com caracteres especiais)
+- BackHandler fecha modal de reclassify tambem
+- Validators: removida duplicata isValidBoleto e implementado modulo 11 para 48 digitos
+- Notificacao e cancelada ao excluir conta (evita notificacao fantasma)
+- Circuit breaker de CNPJ: nao bloqueia 4s se ja falhou nos ultimos 60s
+- Tipo 'CONTA' removido (nunca usado)
+- OCR em fonte mono (JetBrainsMono) para melhor legibilidade
+- Variaveis nao usadas removidas de validators
+- 3 novos testes: csv_escape, circuit_breaker, e validacao de modulo 11
+- 66 testes automatizados passando sem leak

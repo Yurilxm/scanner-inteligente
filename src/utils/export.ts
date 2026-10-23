@@ -3,6 +3,15 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { SavedDocument } from '../db/database';
 
+function escapeCSV(value: string | null | undefined): string {
+  if (!value) return '';
+  const str = String(value);
+  if (str.includes(';') || str.includes('"') || str.includes('\n')) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
 export function generateCSV(documents: SavedDocument[]): string {
   const BOM = '\uFEFF';
   const header = 'ID;Tipo;Emissor;Referencia;Vencimento;Valor (R$);CNPJ;Pago;Data Pagamento;Linha Digitavel\n';
@@ -21,7 +30,7 @@ export function generateCSV(documents: SavedDocument[]): string {
       pDate = `${d}/${m}/${y}`;
     }
 
-    return `${doc.id};${doc.documentType};${doc.issuer || ''};${doc.referenceMonth || ''};${data};${valor};${doc.cnpj || ''};${doc.isPaid ? 'Sim' : 'Nao'};${pDate};${doc.boletoLine || ''}`;
+    return `${escapeCSV(doc.id)};${escapeCSV(doc.documentType)};${escapeCSV(doc.issuer)};${escapeCSV(doc.referenceMonth)};${escapeCSV(data)};${escapeCSV(valor)};${escapeCSV(doc.cnpj)};${doc.isPaid ? 'Sim' : 'Nao'};${escapeCSV(pDate)};${escapeCSV(doc.boletoLine)}`;
   });
   return BOM + header + rows.join('\n');
 }
