@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { View, Text, SectionList, FlatList, StyleSheet, Pressable, Image, TextInput, Modal, ScrollView } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
-import { getDocuments, deleteDocumentById, togglePaidStatus, SavedDocument } from '../db/database';
+import { getDocuments, deleteDocumentById, togglePaidStatus, getCurrentProfile, SavedDocument } from '../db/database';
 import { generateCSVFile, generatePDFFile, shareFile } from '../utils/export';
 import { cancelDueDateReminders, syncDueDateReminders } from '../utils/notifications';
 import { formatBRL } from '../utils/format';
@@ -54,7 +54,7 @@ export default function BibliotecaScreen() {
   const handleExport = async (type: 'csv' | 'pdf') => {
     try {
       if (type === 'csv') {
-        const result = await generateCSVFile(documents);
+        const result = await generateCSVFile(documents, getCurrentProfile());
         setCsvPreview({ visible: true, content: result.content, uri: result.uri });
       } else {
         const result = await generatePDFFile(documents);

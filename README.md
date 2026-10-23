@@ -28,7 +28,7 @@ Aplicativo mobile de finanças pessoais focado em **privacidade absoluta**. Digi
 - **Banco:** ```expo-sqlite``` (local)
 - **UI:** ```expo-linear-gradient```, ```react-native-reanimated```, ```react-native-gesture-handler```
 - **Exportação:** ```expo-print```, ```expo-sharing```, ```expo-intent-launcher```
-- **Testes:** Jest + Testing Library (**137 testes automatizados**)
+- **Testes:** Jest + Testing Library (**138 testes automatizados**)
 
 ## Como Instalar (Desenvolvedores)
 
@@ -57,12 +57,19 @@ npx expo prebuild --clean
 
 ## Automação da Planilha (Usuários Finais)
 
-1. Rode o script ```setup_excel.ps1``` no PC. Ele cria a pasta ```Control_Planilha``` na Área de Trabalho.
-2. Exporte o CSV pelo app (Biblioteca -> CSV -> Compartilhar).
-3. Mova o CSV para dentro da pasta ```Control_Planilha```.
+1. Tenha o Python instalado no PC. Rode o ```setup_excel.ps1``` (na raiz do projeto). Ele instala o ```openpyxl```, se faltar, e cria ou atualiza a pasta ```Control_Planilha``` na Área de Trabalho, sem apagar planilhas e CSVs que já estejam lá.
+2. Exporte o CSV pelo app (Biblioteca -> CSV -> Compartilhar). Cada perfil gera o seu: ```relatorio_yuri.csv```, ```relatorio_mae.csv```.
+3. Mova os CSVs para dentro da pasta ```Control_Planilha```.
 4. Dê dois cliques no ```Atualizar_Planilha.bat```.
 
-O script cria/atualiza ```Planilha_Contas.xlsx``` automaticamente, com backup antes de cada alteração.
+O script cria ou atualiza o ```Planilha_Contas.xlsx```, com backup antes de cada alteração:
+- **Contas novas** são adicionadas, e **contas já existentes são atualizadas** (pago, data de pagamento, valor...). A chave é Perfil + ID.
+- Lê todos os CSVs da pasta, do mais antigo para o mais recente: o mais novo prevalece.
+- O valor é gravado como número e as datas como datas, para dar para somar, ordenar e filtrar no Excel.
+- Planilhas antigas (sem as colunas Perfil e Data Pagamento) ganham as colunas no fim; linhas que não vieram do app ficam intactas.
+- Contas excluídas no app **não** são apagadas da planilha (histórico).
+
+Testes do script: ```python -m unittest Controle_Excel/test_atualizar_planilha.py``` (requer ```openpyxl```).
 
 ## Arquitetura e Decisões Técnicas
 
@@ -72,7 +79,7 @@ O script cria/atualiza ```Planilha_Contas.xlsx``` automaticamente, com backup an
 - **Pipeline de Imagem:** Redimensionamento para 1080px antes do OCR.
 - **Extrator:** Regex contextual + fallback posicional + cache de CNPJ e, se autorizado, consulta em paralelo (circuit breaker de 60s se todas APIs falharem).
 - **Banco versionado:** Migrações via ```PRAGMA user_version``` (v1 corrige tipos de ```isPaid```/```totalAmountCents``` em bancos antigos).
-- **Testes:** 137 testes cobrindo extração, banco, migração, notificações, privacidade, CSV/HTML escape, linha digitável, cache de CNPJ, boletos reais (Enel, Prolagos, UVA, Sicoob, NetMaxxi).
+- **Testes:** 138 testes cobrindo extração, banco, migração, notificações, privacidade, CSV/HTML escape, linha digitável, cache de CNPJ, boletos reais (Enel, Prolagos, UVA, Sicoob, NetMaxxi).
 
 ## Workarounds Críticos (Windows)
 

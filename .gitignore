@@ -46,3 +46,13 @@ cxx-build/
 
 # Dados temporarios de debug de OCR
 /debug_ocr/
+
+# Log local de ferramenta externa
+.jarvis/
+
+# Dados gerados pela automacao da planilha (CSV exportado, planilha e backups)
+Controle_Excel/*.csv
+Controle_Excel/*.xlsx
+
+# Python
+__pycache__/

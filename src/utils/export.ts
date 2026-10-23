@@ -24,23 +24,26 @@ export function escapeHTML(value: string | null | undefined): string {
     .replace(/'/g, '&#39;');
 }
 
-export function generateCSV(documents: SavedDocument[]): string {
+// Perfil vai na ultima coluna: o preview do app le as colunas por posicao
+export function generateCSV(documents: SavedDocument[], profile = ''): string {
   const BOM = '\uFEFF';
-  const header = 'ID;Tipo;Emissor;Referencia;Vencimento;Valor (R$);CNPJ;Pago;Data Pagamento;Linha Digitavel\n';
+  const header = 'ID;Tipo;Emissor;Referencia;Vencimento;Valor (R$);CNPJ;Pago;Data Pagamento;Linha Digitavel;Perfil\n';
   const rows = documents.map(doc => {
     const valor = centsToDecimal(doc.totalAmountCents);
     const data = isoToBR(doc.dueDate);
     const pDate = isoToBR(doc.paymentDate);
 
-    return `${escapeCSV(doc.id)};${escapeCSV(doc.documentType)};${escapeCSV(doc.issuer)};${escapeCSV(doc.referenceMonth)};${escapeCSV(data)};${escapeCSV(valor)};${escapeCSV(doc.cnpj)};${doc.isPaid ? 'Sim' : 'Nao'};${escapeCSV(pDate)};${escapeCSV(doc.boletoLine)}`;
+    return `${escapeCSV(doc.id)};${escapeCSV(doc.documentType)};${escapeCSV(doc.issuer)};${escapeCSV(doc.referenceMonth)};${escapeCSV(data)};${escapeCSV(valor)};${escapeCSV(doc.cnpj)};${doc.isPaid ? 'Sim' : 'Nao'};${escapeCSV(pDate)};${escapeCSV(doc.boletoLine)};${escapeCSV(profile)}`;
   });
   return BOM + header + rows.join('\n');
 }
 
-export async function generateCSVFile(documents: SavedDocument[]) {
+export async function generateCSVFile(documents: SavedDocument[], profile = '') {
   if (documents.length === 0) throw new Error('Nenhum documento para exportar.');
-  const csvContent = generateCSV(documents);
-  const file = new File(Paths.document, 'relatorio_documentos.csv');
+  const csvContent = generateCSV(documents, profile);
+  // Um arquivo por perfil, para nao sobrescrever o do outro na pasta do PC
+  const safeProfile = profile.replace(/[^a-z0-9_-]/gi, '');
+  const file = new File(Paths.document, safeProfile ? `relatorio_${safeProfile}.csv` : 'relatorio_documentos.csv');
   file.write(csvContent);
   return { uri: file.uri, content: csvContent };
 }

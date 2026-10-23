@@ -31,3 +31,19 @@ describe('export util', () => {
     expect(csv).toContain('1;BOLETO;ENEL;05/2026;15/05/2026;1234,56;11222333000181;Nao;;');
   });
 });
+
+describe('generateCSV com perfil', () => {
+  it('acrescenta a coluna Perfil no fim, sem mudar a posição das demais', () => {
+    const doc = {
+      id: '1', imageUri: '', ocrText: '', isPaid: 0, createdAt: '', documentType: 'BOLETO',
+      issuer: 'ENEL', referenceMonth: '10/2026', cnpj: null, cpf: null,
+      totalAmountCents: 18131, dueDate: '2026-11-10', boletoLine: null,
+    } as any;
+    const [header, row] = generateCSV([doc], 'yuri').replace('﻿', '').split('\n');
+    expect(header.split(';').at(-1)).toBe('Perfil');
+    const cols = row.split(';');
+    expect(cols[2]).toBe('ENEL');
+    expect(cols[5]).toBe('181,31');
+    expect(cols.at(-1)).toBe('yuri');
+  });
+});
