@@ -42,6 +42,31 @@ export function todayISO(now: Date = new Date()): string {
   return `${now.getFullYear()}-${m}-${d}`;
 }
 
+// Diferenca em dias de calendario no fuso local: 0 = hoje, 1 = amanha, -1 = ontem
+export function daysUntil(target: Date, now: Date = new Date()): number {
+  const a = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const b = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+  return Math.round((b.getTime() - a.getTime()) / (24 * 60 * 60 * 1000));
+}
+
+export function relativeDays(days: number): string {
+  if (days === 0) return 'hoje';
+  if (days === 1) return 'amanhã';
+  if (days === -1) return 'ontem';
+  return days > 0 ? `em ${days} dias` : `há ${-days} dias`;
+}
+
+const MONTHS = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+
+export function monthShort(date: Date): string {
+  return MONTHS[date.getMonth()];
+}
+
+// Date -> "09:00"
+export function timeHHMM(date: Date): string {
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
 // Mascara de digitacao: "10112026" -> "10/11/2026"
 export function maskDateInput(text: string): string {
   const cleaned = text.replace(/\D/g, '');

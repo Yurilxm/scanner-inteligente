@@ -51,10 +51,11 @@ describe('QA Senior - Migracao e Tabelas Novas', () => {
   it('deve normalizar a palavra-chave antes de salvar (sem acento, minusculo)', () => {
     saveLearnedCategory('Condomínio Cisne Branco', 'CONDOMINIO');
     expect(mockDb.runSync).toHaveBeenCalledWith(
-      expect.stringContaining('INSERT OR REPLACE INTO learned_categories'),
+      expect.stringContaining('INSERT INTO learned_categories'),
       expect.any(String),
       'condominio cisne branco',
       'CONDOMINIO',
+      expect.any(String),
       expect.any(String)
     );
   });
