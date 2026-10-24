@@ -58,52 +58,6 @@ export function isValidCNPJ(cnpj: string): boolean {
   return true;
 }
 
-// Valida Linha Digitável de Boleto (47 ou 48 digitos com DVs)
-export function isValidBoleto(line: string): boolean {
-  const cleanLine = onlyDigits(line);
-  // MVP: validacao estrutural basica (tamanho e modulos).
-  // A validacao completa dos digitos verificadores sera implementada
-  // depois que extrairmos a linha corretamente.
-  return cleanLine.length === 47 || cleanLine.length === 48;
-}
-
-
-// ==========================================
-// VALIDAÇÃO DE LINHA DIGITÁVEL (BOLETO)
-// ==========================================
-export function validateBoletoLine(line: string): boolean {
-  const cleanLine = line.replace(/\D/g, '');
-  if (cleanLine.length !== 47 && cleanLine.length !== 48) return false;
-
-  // Lógica simplificada para validação de módulo 10 e 11
-  // (A validação completa exige o cálculo do DV geral e dos campos)
-  try {
-    if (cleanLine.length === 47) {
-      const fields = [cleanLine.slice(0, 10), cleanLine.slice(10, 21), cleanLine.slice(21, 32)];
-      const dv = parseInt(cleanLine.slice(32, 33), 10);
-      
-      let sum = 0;
-      let weight = 2;
-      const fieldWithoutDv = cleanLine.slice(0, 9) + cleanLine.slice(10, 20) + cleanLine.slice(21, 31);
-      
-      // Módulo 10
-      const mod10 = (str: string) => {
-        let s = 0, w = 2;
-        for (let i = str.length - 1; i >= 0; i--) {
-          let digit = parseInt(str[i], 10) * w;
-          if (digit > 9) digit = Math.floor(digit / 10) + (digit % 10);
-          s += digit;
-          w = w === 2 ? 1 : 2;
-        }
-        const rem = s % 10;
-        return rem === 0 ? 0 : 10 - rem;
-      };
-      
-      return mod10(fieldWithoutDv) === dv;
-    }
-    // Para 48 dígitos (arrecadação), seria Módulo 11
-    return true; // Implementação completa do M11 fica para o futuro se precisar
-  } catch {
-    return false;
-  }
-}
+// Validacao completa da linha digitavel (DVs Febraban) fica em boleto.ts
+export { validateBoletoLine } from './boleto';
+export { validateBoletoLine as isValidBoleto } from './boleto';
