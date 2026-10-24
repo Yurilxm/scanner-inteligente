@@ -1,4 +1,4 @@
-// SHA-256 e PIN: slice temporario de __tests__/perfis.test.ts (unificado em 3a.4)
+// SHA-256 e PIN: hash e formatacao
 import { sha256Hex } from '../src/utils/sha256';
 import { hashPin, isValidPinFormat, newSalt, pinLockRemaining, verifyPin } from '../src/utils/pin';
 describe('SHA-256 (vetores do NIST)', () => {
