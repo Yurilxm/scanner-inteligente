@@ -1,6 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 import { ExtractedFields } from '../types/document';
 import { todayISO } from '../utils/format';
+import { getActiveProfileId, setActiveProfileId } from './profiles';
 
 type Db = SQLite.SQLiteDatabase;
 
@@ -9,7 +10,7 @@ export function profileDbName(profileId: string): string {
   return `scanner_${profileId}.db`;
 }
 
-let currentProfile = 'yuri';
+let currentProfile = getActiveProfileId();
 let db: Db = SQLite.openDatabaseSync(profileDbName(currentProfile));
 
 export function getCurrentProfile() { return currentProfile; }
@@ -20,6 +21,7 @@ export function changeProfile(profile: string) {
   currentProfile = profile;
   db = SQLite.openDatabaseSync(profileDbName(currentProfile));
   initDatabase();
+  setActiveProfileId(profile);
 }
 
 // ID unico mesmo com dois salvamentos no mesmo milissegundo
@@ -291,3 +293,117 @@ export function saveCachedCNPJ(cnpj: string, razao_social: string, cnae_fiscal: 
   } catch {}
 }
 
+
+// ============================================================
+// Fase 3: funcoes de perfil (sync/Fase 4 omitidas)
+// ============================================================
+// Executa fn no banco de um perfil qualquer, abrindo e fechando se não for o ativo
+function withProfileDb<T>(profileId: string, fn: (target: Db) => T): T {
+  if (profileId === currentProfile) return fn(db);
+  const target = SQLite.openDatabaseSync(profileDbName(profileId));
+  try {
+    initSchema(target);
+    return fn(target);
+  } finally {
+    target.closeSync();
+  }
+}
+
+export function getProfileSettings(profileId: string, defaults: Record<string, string>): Record<string, string> {
+  return withProfileDb(profileId, target => {
+    const result = { ...defaults };
+    for (const key of Object.keys(defaults)) {
+      const row = target.getFirstSync<{ value: string }>('SELECT value FROM settings WHERE key = ?', key);
+      if (row) result[key] = row.value;
+    }
+    return result;
+  });
+}
+
+export function setProfileSettings(profileId: string, values: Record<string, string>): void {
+  withProfileDb(profileId, target => {
+    for (const [key, value] of Object.entries(values)) {
+      target.runSync('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', key, value);
+    }
+  });
+}
+
+export function countProfileDocuments(profileId: string): { total: number; pending: number } {
+  return withProfileDb(profileId, target => {
+    const row = target.getFirstSync<{ total: number; pending: number }>(
+      'SELECT COUNT(*) AS total, COALESCE(SUM(CASE WHEN isPaid = 0 THEN 1 ELSE 0 END), 0) AS pending FROM documents WHERE deletedAt IS NULL'
+    );
+    return { total: row?.total ?? 0, pending: row?.pending ?? 0 };
+  });
+}
+
+export type PendingDocument = { id: string; issuer: string | null; totalAmountCents: number | null; dueDate: string | null };
+
+// Contas não pagas de um perfil (inclusive não ativo), da que vence primeiro; sem vencimento vão para o fim.
+// Ignora o "registro só de pagamento" que a sincronização cria antes de o conteúdo chegar.
+export function listPendingDocuments(profileId: string, limit = 50): PendingDocument[] {
+  return withProfileDb(profileId, target =>
+    target.getAllSync<PendingDocument>(
+      `SELECT id, issuer, totalAmountCents, dueDate FROM documents
+       WHERE deletedAt IS NULL AND isPaid = 0
+         AND NOT (documentType = 'DESCONHECIDO' AND issuer IS NULL AND totalAmountCents IS NULL)
+       ORDER BY dueDate IS NULL, dueDate ASC, createdAt DESC
+       LIMIT ?`,
+      limit,
+    ) ?? [],
+  );
+}
+
+// Apaga o banco de um perfil (que não pode ser o ativo) e devolve o que precisa ser limpo fora dele
+export function deleteProfileDatabase(profileId: string): { imageUris: string[]; docIds: string[] } {
+  if (profileId === currentProfile) throw new Error('Troque de perfil antes de excluir o perfil ativo.');
+  const target = SQLite.openDatabaseSync(profileDbName(profileId));
+  let rows: { id: string; imageUri: string }[] = [];
+  try {
+    rows = target.getAllSync<{ id: string; imageUri: string }>('SELECT id, imageUri FROM documents') ?? [];
+  } catch {
+    // banco vazio, sem tabela documents
+  } finally {
+    target.closeSync();
+  }
+  SQLite.deleteDatabaseSync(profileDbName(profileId));
+  return { imageUris: rows.map(r => r.imageUri), docIds: rows.map(r => r.id) };
+}
+
+
+// Move uma conta da gaveta aberta para outra: copia para o banco da outra (marcada para enviar)
+// e deixa uma marca de exclusão aqui, para a gaveta de origem sumir com ela nos outros celulares.
+// A foto continua no mesmo arquivo do celular.
+export function moveDocumentToProfile(id: string, targetProfileId: string): SavedDocument {
+  if (targetProfileId === currentProfile) throw new Error('A conta já está nesta gaveta.');
+  const doc = db.getFirstSync<SavedDocument>(
+    'SELECT * FROM documents WHERE id = ? AND deletedAt IS NULL', id,
+  );
+  if (!doc) throw new Error('Conta não encontrada.');
+  const now = new Date().toISOString();
+  withProfileDb(targetProfileId, target => {
+    target.runSync(
+      `INSERT OR REPLACE INTO documents (id, imageUri, documentType, issuer, referenceMonth, cnpj, cpf, totalAmountCents, dueDate, boletoLine, ocrText, isPaid, paymentDate, createdAt, updatedAt, paymentUpdatedAt, deletedAt, contentDirty, paymentDirty)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 1, 1)`,
+      doc.id, doc.imageUri ?? '', doc.documentType, doc.issuer, doc.referenceMonth, doc.cnpj, doc.cpf,
+      doc.totalAmountCents, doc.dueDate, doc.boletoLine, doc.ocrText, doc.isPaid, doc.paymentDate ?? null,
+      doc.createdAt, now, now,
+    );
+  });
+  deleteDocumentById(id);
+  return doc;
+}
+
+// Conta existe (e não foi excluída) no banco de uma gaveta, aberta ou não
+export function documentExistsInProfile(profileId: string, id: string): boolean {
+  return withProfileDb(profileId, target =>
+    !!target.getFirstSync<{ id: string }>('SELECT id FROM documents WHERE id = ? AND deletedAt IS NULL', id));
+}
+
+// Exclui (marca de exclusão, para sincronizar) uma conta de qualquer gaveta, aberta ou não
+export function deleteDocumentInProfile(profileId: string, id: string): void {
+  const now = new Date().toISOString();
+  withProfileDb(profileId, target => {
+    target.runSync('UPDATE documents SET deletedAt = ?, updatedAt = ?, ocrText = NULL, contentDirty = 1 WHERE id = ?', now, now, id);
+  });
+}
