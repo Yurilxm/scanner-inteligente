@@ -76,8 +76,8 @@ describe('ReclassifyModal', () => {
 
     expect(onSaved).toHaveBeenCalledWith('AGUA');
     expect(mockDb.runSync).toHaveBeenCalledWith(
-      expect.stringContaining('INSERT OR REPLACE INTO learned_categories'),
-      expect.any(String), 'prolagos', 'AGUA', expect.any(String)
+      expect.stringContaining('INSERT INTO learned_categories'),
+      expect.any(String), 'prolagos', 'AGUA', expect.any(String), expect.any(String)
     );
   });
 
