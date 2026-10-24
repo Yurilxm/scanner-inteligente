@@ -2,10 +2,10 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { ScannerBackground } from '../src/components/ScannerBackground';
-import { Theme } from '../src/constants/theme';
-import { APP_NAME } from '../src/constants';
-import { getCurrentProfile, changeProfile } from '../src/db/database';
+import { ScannerBackground } from '../components/ScannerBackground';
+import { Theme } from '../constants/theme';
+import { APP_NAME } from '../constants';
+import { getCurrentProfile, changeProfile } from '../db/database';
 import { useState } from 'react';
 
 export default function HomeScreen() {

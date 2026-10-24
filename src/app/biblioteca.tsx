@@ -1,17 +1,20 @@
 import { useState, useCallback, useMemo } from 'react';
-import { View, Text, SectionList, FlatList, StyleSheet, Pressable, Image, TextInput, Modal, ScrollView, Alert } from 'react-native';
-import { router, Stack, useFocusEffect } from 'expo-router';
-import { getDocuments, deleteDocumentById, togglePaidStatus, SavedDocument, clearAllData } from '../src/db/database';
-import { generateCSVFile, generatePDFFile, shareFile } from '../src/utils/export';
-import { File, Paths } from 'expo-file-system';
+import { View, Text, SectionList, FlatList, StyleSheet, Pressable, Image, TextInput, Modal, ScrollView } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
+import { getDocuments, deleteDocumentById, togglePaidStatus, getCurrentProfile, SavedDocument } from '../db/database';
+import { generateCSVFile, generatePDFFile, shareFile } from '../utils/export';
+import { cancelDueDateReminders, syncDueDateReminders } from '../utils/notifications';
+import { formatBRL } from '../utils/format';
+import { File } from 'expo-file-system';
+// getContentUriAsync da API nova é só um stub que lança erro; a implementação está na legacy
+import { getContentUriAsync } from 'expo-file-system/legacy';
 import * as IntentLauncher from 'expo-intent-launcher';
-import * as FS from 'expo-file-system';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { ScannerBackground } from '../src/components/ScannerBackground';
-import { Theme } from '../src/constants/theme';
-import { CustomModal } from '../src/components/CustomModal';
+import { ScannerBackground } from '../components/ScannerBackground';
+import { Theme } from '../constants/theme';
+import { CustomModal } from '../components/CustomModal';
 
 type FilterType = 'TODAS' | 'PENDENTES' | 'PAGAS';
 
@@ -36,30 +39,33 @@ export default function BibliotecaScreen() {
       if (file.exists) file.delete();
     } catch {}
     deleteDocumentById(docToDelete.id);
+    cancelDueDateReminders(docToDelete.id).catch(e => console.warn('Erro ao cancelar notificacao', e));
     setDocuments(getDocuments());
     setDocToDelete(null);
   };
 
   const handleTogglePaid = (doc: SavedDocument) => {
     togglePaidStatus(doc.id, doc.isPaid);
+    syncDueDateReminders({ ...doc, isPaid: doc.isPaid === 1 ? 0 : 1 })
+      .catch(e => console.warn('Erro ao atualizar notificacao', e));
     setDocuments(getDocuments());
   };
 
   const handleExport = async (type: 'csv' | 'pdf') => {
     try {
       if (type === 'csv') {
-        const result = await generateCSVFile(documents);
+        const result = await generateCSVFile(documents, getCurrentProfile());
         setCsvPreview({ visible: true, content: result.content, uri: result.uri });
       } else {
         const result = await generatePDFFile(documents);
         try {
-          const contentUri = await FS.getContentUriAsync(result.uri);
+          const contentUri = await getContentUriAsync(result.uri);
           await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
             data: contentUri,
             flags: 1,
             type: 'application/pdf',
           });
-        } catch (e) {
+        } catch {
           // Fallback: Se o Android nao tiver visualizador padrao, abre o compartilhamento (que tem opcao de visualizar)
           await shareFile(result.uri, 'application/pdf', 'Visualizar PDF', 'com.adobe.pdf');
         }
@@ -122,7 +128,7 @@ export default function BibliotecaScreen() {
           Ref: {item.referenceMonth || '-'} | Venc: {item.dueDate ? item.dueDate.split('-').reverse().join('/') : '-'}
         </Text>
         <Text style={styles.cardValue}>
-          {item.totalAmountCents ? `R$ ${(item.totalAmountCents / 100).toFixed(2).replace('.', ',')}` : 'Sem valor'}
+          {formatBRL(item.totalAmountCents) || 'Sem valor'}
         </Text>
 
         <View style={styles.actionsRow}>

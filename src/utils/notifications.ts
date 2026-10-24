@@ -1,4 +1,5 @@
 import * as Notifications from 'expo-notifications';
+import { AndroidImportance } from 'expo-notifications';
 import { Platform } from 'react-native';
 import { getSetting } from '../db/database';
 
@@ -23,12 +24,26 @@ export async function requestNotificationPermissions() {
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
       name: 'Lembretes de Vencimento',
-      importance: Notifications.AndroidImportance.MAX,
+      importance: AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: '#00d4ff',
     });
   }
   return true;
+}
+
+export async function cancelDueDateReminders(docId: string) {
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  const mine = scheduled.filter(n => n.content.data?.docId === docId);
+  await Promise.all(mine.map(n => Notifications.cancelScheduledNotificationAsync(n.identifier)));
+}
+
+// Cancela os lembretes do documento e reagenda só se ainda estiver pendente
+export async function syncDueDateReminders(doc: { id: string; issuer: string | null; dueDate: string | null; isPaid: number }) {
+  await cancelDueDateReminders(doc.id);
+  if (doc.isPaid !== 1 && doc.issuer && doc.dueDate) {
+    await scheduleDueDateReminder(doc.id, doc.issuer, doc.dueDate);
+  }
 }
 
 export async function scheduleDueDateReminder(docId: string, issuer: string, dueDate: string) {

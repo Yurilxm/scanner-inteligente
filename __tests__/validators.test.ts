@@ -36,9 +36,14 @@ describe('Validadores', () => {
   });
 
   describe('isValidBoleto', () => {
-    it('aceita linha digitavel com 47 ou 48 digitos', () => {
-      expect(isValidBoleto('12345678901234567890123456789012345678901234567')).toBe(true); // 47
-      expect(isValidBoleto('123456789012345678901234567890123456789012345678')).toBe(true); // 48
+    it('aceita linha digitavel com 47 ou 48 digitos e DVs corretos', () => {
+      expect(isValidBoleto('00190500954014481606906809350314337370000000100')).toBe(true); // 47
+      expect(isValidBoleto('826100000049620600480003123123456782901234500006')).toBe(true); // 48
+    });
+
+    it('rejeita linha com tamanho certo mas digitos inventados', () => {
+      expect(isValidBoleto('12345678901234567890123456789012345678901234567')).toBe(false);
+      expect(isValidBoleto('123456789012345678901234567890123456789012345678')).toBe(false);
     });
 
     it('rejeita tamanhos incorretos', () => {
@@ -49,8 +54,7 @@ describe('Validadores', () => {
 
 describe('Boleto Line Validation', () => {
   it('validates a correct 47-digit line', () => {
-    // Um número fictício para testar a lógica base
-    expect(validateBoletoLine('23793381286000000003381260000000000000000000')).toBe(false); // Ajustar com um válido real
+    expect(validateBoletoLine('00190.50095 40144.816069 06809.350314 3 37370000000100')).toBe(true);
   });
   it('rejects lines with wrong length', () => {
     expect(validateBoletoLine('123')).toBe(false);

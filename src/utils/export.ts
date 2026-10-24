@@ -2,6 +2,7 @@ import { File, Paths } from 'expo-file-system';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { SavedDocument } from '../db/database';
+import { centsToDecimal, formatBRL, isoToBR } from './format';
 
 function escapeCSV(value: string | null | undefined): string {
   if (!value) return '';
@@ -12,33 +13,37 @@ function escapeCSV(value: string | null | undefined): string {
   return str;
 }
 
-export function generateCSV(documents: SavedDocument[]): string {
-  const BOM = '\uFEFF';
-  const header = 'ID;Tipo;Emissor;Referencia;Vencimento;Valor (R$);CNPJ;Pago;Data Pagamento;Linha Digitavel\n';
-  const rows = documents.map(doc => {
-    const valor = doc.totalAmountCents ? (doc.totalAmountCents / 100).toFixed(2).replace('.', ',') : '';
-    let data = doc.dueDate || '';
-    if (data.includes('-')) {
-      const [y, m, d] = data.split('-');
-      data = `${d}/${m}/${y}`;
-    }
-    
-    // Formata a data de pagamento se existir
-    let pDate = '';
-    if (doc.paymentDate && doc.paymentDate.includes('-')) {
-      const [y, m, d] = doc.paymentDate.split('-');
-      pDate = `${d}/${m}/${y}`;
-    }
+// Texto vindo do OCR/usuario entra no HTML do PDF; escapa para nao virar marcacao
+export function escapeHTML(value: string | null | undefined): string {
+  if (!value) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
-    return `${escapeCSV(doc.id)};${escapeCSV(doc.documentType)};${escapeCSV(doc.issuer)};${escapeCSV(doc.referenceMonth)};${escapeCSV(data)};${escapeCSV(valor)};${escapeCSV(doc.cnpj)};${doc.isPaid ? 'Sim' : 'Nao'};${escapeCSV(pDate)};${escapeCSV(doc.boletoLine)}`;
+// Perfil vai na ultima coluna: o preview do app le as colunas por posicao
+export function generateCSV(documents: SavedDocument[], profile = ''): string {
+  const BOM = '\uFEFF';
+  const header = 'ID;Tipo;Emissor;Referencia;Vencimento;Valor (R$);CNPJ;Pago;Data Pagamento;Linha Digitavel;Perfil\n';
+  const rows = documents.map(doc => {
+    const valor = centsToDecimal(doc.totalAmountCents);
+    const data = isoToBR(doc.dueDate);
+    const pDate = isoToBR(doc.paymentDate);
+
+    return `${escapeCSV(doc.id)};${escapeCSV(doc.documentType)};${escapeCSV(doc.issuer)};${escapeCSV(doc.referenceMonth)};${escapeCSV(data)};${escapeCSV(valor)};${escapeCSV(doc.cnpj)};${doc.isPaid ? 'Sim' : 'Nao'};${escapeCSV(pDate)};${escapeCSV(doc.boletoLine)};${escapeCSV(profile)}`;
   });
   return BOM + header + rows.join('\n');
 }
 
-export async function generateCSVFile(documents: SavedDocument[]) {
+export async function generateCSVFile(documents: SavedDocument[], profile = '') {
   if (documents.length === 0) throw new Error('Nenhum documento para exportar.');
-  const csvContent = generateCSV(documents);
-  const file = new File(Paths.document, 'relatorio_documentos.csv');
+  const csvContent = generateCSV(documents, profile);
+  // Um arquivo por perfil, para nao sobrescrever o do outro na pasta do PC
+  const safeProfile = profile.replace(/[^a-z0-9_-]/gi, '');
+  const file = new File(Paths.document, safeProfile ? `relatorio_${safeProfile}.csv` : 'relatorio_documentos.csv');
   file.write(csvContent);
   return { uri: file.uri, content: csvContent };
 }
@@ -68,26 +73,18 @@ export async function generatePDFFile(documents: SavedDocument[]) {
             <th style="border: 1px solid #ddd; padding: 8px;">Pagamento</th>
           </tr>
           ${documents.map(doc => {
-            const valor = doc.totalAmountCents ? `R$ ${(doc.totalAmountCents / 100).toFixed(2).replace('.', ',')}` : '-';
-            let data = doc.dueDate || '-';
-            if (data.includes('-')) {
-              const [y, m, d] = data.split('-');
-              data = `${d}/${m}/${y}`;
-            }
-            let pDate = '-';
-            if (doc.paymentDate && doc.paymentDate.includes('-')) {
-              const [y, m, d] = doc.paymentDate.split('-');
-              pDate = `${d}/${m}/${y}`;
-            }
+            const valor = formatBRL(doc.totalAmountCents) || '-';
+            const data = isoToBR(doc.dueDate) || '-';
+            const pDate = isoToBR(doc.paymentDate) || '-';
             return `
               <tr>
-                <td style="border: 1px solid #ddd; padding: 8px;">${doc.documentType}</td>
-                <td style="border: 1px solid #ddd; padding: 8px;">${doc.issuer || '-'}</td>
-                <td style="border: 1px solid #ddd; padding: 8px;">${doc.referenceMonth || '-'}</td>
-                <td style="border: 1px solid #ddd; padding: 8px;">${data}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${escapeHTML(doc.documentType)}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${escapeHTML(doc.issuer) || '-'}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${escapeHTML(doc.referenceMonth) || '-'}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${escapeHTML(data)}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">${valor}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">${doc.isPaid ? 'PAGO' : 'PENDENTE'}</td>
-                <td style="border: 1px solid #ddd; padding: 8px;">${pDate}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${escapeHTML(pDate)}</td>
               </tr>
             `;
           }).join('')}

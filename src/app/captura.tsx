@@ -1,15 +1,15 @@
 import { useState } from 'react';
-import { Text, Pressable, StyleSheet, Alert, View } from 'react-native';
+import { Text, Pressable, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import * as DocumentScanner from 'expo-document-scanner';
 import * as ImagePicker from 'expo-image-picker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useDocument } from '../src/context/DocumentContext';
-import { saveImageLocally } from '../src/utils/files';
-import { ScannerBackground } from '../src/components/ScannerBackground';
-import { CustomToast } from '../src/components/CustomToast';
-import { Theme } from '../src/constants/theme';
+import { useDocument } from '../context/DocumentContext';
+import { saveImageLocally } from '../utils/files';
+import { ScannerBackground } from '../components/ScannerBackground';
+import { CustomToast } from '../components/CustomToast';
+import { Theme } from '../constants/theme';
 
 export default function CapturaScreen() {
   const { setImageUri } = useDocument();

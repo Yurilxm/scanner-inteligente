@@ -51,6 +51,8 @@ jest.mock('expo-sqlite', () => ({
 jest.mock('expo-notifications', () => ({
   setNotificationHandler: jest.fn(),
   scheduleNotificationAsync: jest.fn(),
+  getAllScheduledNotificationsAsync: jest.fn(() => Promise.resolve([])),
+  cancelScheduledNotificationAsync: jest.fn(() => Promise.resolve()),
   getPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
   requestPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
   setNotificationChannelAsync: jest.fn(),
@@ -82,6 +84,7 @@ jest.mock('expo-file-system/legacy', () => ({
   copyAsync: jest.fn(() => Promise.resolve()),
   deleteAsync: jest.fn(() => Promise.resolve()),
   writeAsStringAsync: jest.fn(() => Promise.resolve()),
+  readDirectoryAsync: jest.fn(() => Promise.resolve([])),
 }));
 
 jest.mock('expo-image-manipulator', () => ({

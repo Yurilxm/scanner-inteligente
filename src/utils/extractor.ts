@@ -1,5 +1,12 @@
 import { ExtractedFields, DocumentType } from '../types/document';
 import { getCachedCNPJ, saveCachedCNPJ } from '../db/database';
+import { isValidCNPJ } from './validators';
+import { validateBoletoLine, decodeBoletoLine } from './boleto';
+
+export type ExtractOptions = {
+  // Consulta o CNPJ em APIs publicas (BrasilAPI, OpenCNPJ, PublicaCNPJ). Desligado por padrao.
+  allowCnpjLookup?: boolean;
+};
 
 function cleanText(text: string) {
   if (!text) return '';
@@ -111,12 +118,12 @@ function extractValue(text: string): number | null {
     }
   }
 
-  // 3. Fallback: último valor decimal, ignorando anos
+  // 3. Fallback: último valor decimal (anos não chegam aqui: a regex exige centavos)
   const decimals = cleaned.match(/(\d{1,3}(?:\.\d{3})*[.,]\d{2})/g);
   if (decimals) {
     const parsed = decimals
       .map(parseToCents)
-      .filter((v): v is number => v !== null && !(v >= 190000 && v <= 210000));
+      .filter((v): v is number => v !== null);
     if (parsed.length > 0) return parsed[parsed.length - 1];
   }
 
@@ -164,6 +171,22 @@ function extractCNPJ(text: string): string | null {
   return null;
 }
 
+// Linha digitavel: tolera pontos, espacos e hifens do OCR; descarta leituras com DV errado
+const BOLETO_LINE_PATTERNS = [
+  /\d{5}[.\s]?\d{5}\s*\d{5}[.\s]?\d{6}\s*\d{5}[.\s]?\d{6}\s*\d\s*\d{14}/g,  // bancario (47)
+  /\d{11}[\s-]?\d\s*\d{11}[\s-]?\d\s*\d{11}[\s-]?\d\s*\d{11}[\s-]?\d/g,     // arrecadacao (48)
+];
+
+function extractBoletoLine(text: string): string | null {
+  for (const pattern of BOLETO_LINE_PATTERNS) {
+    for (const match of text.matchAll(pattern)) {
+      const digits = match[0].replace(/\D/g, '');
+      if (validateBoletoLine(digits)) return digits;
+    }
+  }
+  return null;
+}
+
 function mapCNAEToCategory(cnae: string): string | null {
   const code = cnae.replace(/\D/g, '');
   if (code.startsWith('351')) return 'ENERGIA';
@@ -179,12 +202,16 @@ function mapCNAEToCategory(cnae: string): string | null {
 
 let cnpjFetchDisabledUntil = 0;
 
-async function fetchCNPJData(cnpj: string): Promise<{ razao_social: string; categoria: string } | null> {
-  if (Date.now() < cnpjFetchDisabledUntil) return null;
+async function fetchCNPJData(cnpj: string, allowNetwork: boolean): Promise<{ razao_social: string; categoria: string } | null> {
   const clean = cnpj.replace(/\D/g, '');
+  // Cache local primeiro: funciona offline e sem enviar nada para fora
   let cached: any = null;
   try { cached = getCachedCNPJ(clean); } catch {}
   if (cached) return cached;
+
+  // Rede só com consentimento do usuario e para CNPJ valido
+  if (!allowNetwork || !isValidCNPJ(clean)) return null;
+  if (Date.now() < cnpjFetchDisabledUntil) return null;
 
   const tryFetch = async (url: string, source: string) => {
     const controller = new AbortController();
@@ -232,10 +259,11 @@ function extractIssuerFromKeywords(text: string): string | null {
   if (/\bUVA\b|ANTARES|EDUCACIONAL|FACULDADE|UNIVERSIDADE/i.test(text)) return 'FACULDADE';
   if (/IPVA|DETRAN/i.test(text)) return 'IPVA';
   if (/SEGURO|SEGURADORA|PORTO SEGURO/i.test(text)) return 'SEGURO';
-  if (/GAS|ULTRAGAZ|LIQUIGAS/i.test(text)) return 'GAS';
+  // \b evita falsos positivos como GASTOS, ESTIMADO, ULTIMO, DECLAROU
+  if (/\bGAS\b|ULTRAGAZ|LIQUIGAS|COMGAS/i.test(text)) return 'GAS';
   if (/VISTORIA/i.test(text)) return 'VISTORIA';
-  if (/TIM|VIVO|CLARO/i.test(text)) return 'TELEFONIA';
-  if (/ACADEMIA|FITNESS|SMART FIT|GYM/i.test(text)) return 'ACADEMIA';
+  if (/\b(?:TIM|VIVO|CLARO)\b/i.test(text)) return 'TELEFONIA';
+  if (/ACADEMIA|FITNESS|SMART FIT|\bGYM\b/i.test(text)) return 'ACADEMIA';
   return null;
 }
 
@@ -252,7 +280,8 @@ function extractIssuerFromBeneficiary(text: string): string | null {
 
 export async function extractFields(
   rawData: any,
-  learnedCategories: { pattern: string; category: string }[] = []
+  learnedCategories: { pattern: string; category: string }[] = [],
+  options: ExtractOptions = {}
 ): Promise<ExtractedFields> {
   let textInput = '';
   if (typeof rawData === 'string') textInput = rawData;
@@ -271,10 +300,14 @@ export async function extractFields(
   }
 
   // 1. TIPO
+  // Indicadores fortes de boleto vencem; os fracos (VALOR TOTAL etc.) também aparecem em notas fiscais
+  const strongBoleto = /BENEFICIARIO|NOSSO NUMERO|LINHA DIGITAVEL|\bBOLETO\b|\bUVA\b|FACULDADE|EDUCACIONAL|UNIVERSIDADE|\bENEL\b|PROLAGOS|NETMAXX|SICOOB|CONDOMIN|CISNE BRANC/i;
+  const weakBoleto = /TOTAL A PAGAR|VALOR DO DOCUMENTO|VALOR TOTAL/i;
   let documentType: DocumentType = 'OUTROS';
-  if (/BENEFICIARIO|NOSSO NUMERO|LINHA DIGITAVEL|TOTAL A PAGAR|BOLETO|UVA|FACULDADE|EDUCACIONAL|UNIVERSIDADE|ENEL|PROLAGOS|NETMAXX|SICOOB|CONDOMIN|CISNE BRANC|VALOR DO DOCUMENTO|VALOR TOTAL/i.test(text)) documentType = 'BOLETO';
-  else if (/PIX/i.test(text) && !/BENEFICIARIO/i.test(text)) documentType = 'PIX';
+  if (strongBoleto.test(text)) documentType = 'BOLETO';
   else if (/NOTA FISCAL|DANFE/i.test(text)) documentType = 'NOTA_FISCAL';
+  else if (weakBoleto.test(text)) documentType = 'BOLETO';
+  else if (/\bPIX\b/i.test(text)) documentType = 'PIX';
   else if (/RECIBO/i.test(text)) documentType = 'RECIBO';
 
   // 2. CNPJ
@@ -299,7 +332,7 @@ export async function extractFields(
   // 3.3 Beneficiário
   if (!issuer) issuer = extractIssuerFromBeneficiary(text);
 
-  // 3.4 CNPJ API (último recurso)
+  // 3.4 CNPJ: cache local e, se permitido, API (último recurso)
   if (!issuer && cnpjClean) {
     try {
       let timeoutHandle: any = null;
@@ -307,26 +340,25 @@ export async function extractFields(
         timeoutHandle = setTimeout(() => r(null), 5000);
         if (timeoutHandle && typeof timeoutHandle.unref === 'function') timeoutHandle.unref();
       });
-      const cnpjData = await Promise.race([fetchCNPJData(cnpjClean), timeoutPromise]);
+      const cnpjData = await Promise.race([fetchCNPJData(cnpjClean, options.allowCnpjLookup === true), timeoutPromise]);
       if (timeoutHandle) clearTimeout(timeoutHandle);
       if (cnpjData) issuer = cnpjData.categoria;
     } catch {}
   }
 
-  // 4. VENCIMENTO
-  const dueDate = extractDueDate(text);
+  // 4. LINHA DIGITÁVEL (só aceita se os dígitos verificadores conferirem)
+  const boletoLine = extractBoletoLine(text);
+  const boleto = boletoLine ? decodeBoletoLine(boletoLine) : null;
+  if (boleto && documentType === 'OUTROS') documentType = 'BOLETO';
 
-  // 5. VALOR
-  const totalAmountCents = extractValue(text);
+  // 5. VENCIMENTO e 6. VALOR: a linha validada é mais confiável que o texto do OCR
+  const dueDate = boleto?.dueDate ?? extractDueDate(text);
+  const totalAmountCents = boleto?.amountCents ?? extractValue(text);
 
-  // 6. REFERÊNCIA
+  // 7. REFERÊNCIA
   const referenceMonth = extractReference(text);
 
-  // 7. LINHA DIGITÁVEL
-  const boletoMatch = text.match(/\d{5}\.\d{5}\s+\d{5}\.\d{6}\s+\d{5}\.\d{6}\s+\d\s+\d{14}|\d{11,12}\s+\d\s+\d{11,12}\s+\d\s+\d{11,12}\s+\d\s+\d{11,12}/);
-
   return {
-    documentType, issuer, referenceMonth, cnpj: cnpjClean, cpf: null, totalAmountCents, dueDate,
-    boletoLine: boletoMatch ? boletoMatch[0] : null,
+    documentType, issuer, referenceMonth, cnpj: cnpjClean, cpf: null, totalAmountCents, dueDate, boletoLine,
   };
 }

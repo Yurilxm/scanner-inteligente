@@ -4,21 +4,23 @@ import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { ScannerBackground } from '../src/components/ScannerBackground';
-import { Theme } from '../src/constants/theme';
-import { getSetting, setSetting } from '../src/db/database';
-import { CustomModal } from '../src/components/CustomModal';
+import { ScannerBackground } from '../components/ScannerBackground';
+import { Theme } from '../constants/theme';
+import { getSetting, setSetting } from '../db/database';
+import { CustomModal } from '../components/CustomModal';
 
 export default function ConfiguracoesScreen() {
   const [daysBefore, setDaysBefore] = useState(() => parseInt(getSetting('notification_days_before', '5'), 10) || 5);
   const [frequency, setFrequency] = useState(() => getSetting('notification_frequency', 'once'));
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => getSetting('notifications_enabled', 'true') === 'true');
+  const [cnpjLookupEnabled, setCnpjLookupEnabled] = useState(() => getSetting('cnpj_lookup_enabled', 'false') === 'true');
   const [showSuccess, setShowSuccess] = useState(false);
 
   const handleSave = () => {
     setSetting('notification_days_before', String(daysBefore));
     setSetting('notification_frequency', frequency);
     setSetting('notifications_enabled', notificationsEnabled ? 'true' : 'false');
+    setSetting('cnpj_lookup_enabled', cnpjLookupEnabled ? 'true' : 'false');
     setShowSuccess(true);
   };
 
@@ -79,6 +81,20 @@ export default function ConfiguracoesScreen() {
             </Text>
           </Pressable>
 
+          <Text style={[styles.sectionTitle, { marginTop: 32 }]}>Privacidade</Text>
+          <View style={styles.toggleRow}>
+            <Text style={[styles.toggleLabel, { flex: 1 }]}>Consultar CNPJ na internet</Text>
+            <Switch
+              value={cnpjLookupEnabled}
+              onValueChange={setCnpjLookupEnabled}
+              trackColor={{ false: '#333', true: Theme.colors.primary }}
+              thumbColor={cnpjLookupEnabled ? '#fff' : '#888'}
+            />
+          </View>
+          <Text style={[styles.helpText, { marginTop: -12 }]}>
+            Quando o emissor nao for reconhecido, envia apenas o CNPJ da empresa para BrasilAPI, OpenCNPJ e PublicaCNPJ. Desligado, nenhum dado sai do aparelho.
+          </Text>
+
           <Pressable style={styles.saveButton} onPress={handleSave}>
             <Text style={styles.saveText}>SALVAR PREFERENCIAS</Text>
           </Pressable>
@@ -88,7 +104,7 @@ export default function ConfiguracoesScreen() {
       <CustomModal
         visible={showSuccess}
         title="Salvo!"
-        message="Suas preferencias de notificacao foram atualizadas."
+        message="Suas preferencias foram atualizadas."
         confirmText="OK"
         onConfirm={() => { setShowSuccess(false); router.back(); }}
         onCancel={() => { setShowSuccess(false); router.back(); }}
