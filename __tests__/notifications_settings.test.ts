@@ -1,6 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import { scheduleDueDateReminder } from '../src/utils/notifications';
-import { getSetting } from '../src/db/database';
+import { appSetting } from '../src/utils/perfil';
 
 jest.mock('expo-notifications', () => ({
   setNotificationHandler: jest.fn(),
@@ -9,8 +9,11 @@ jest.mock('expo-notifications', () => ({
 }));
 
 jest.mock('../src/db/database', () => ({
-  getSetting: jest.fn(),
+  getCurrentProfile: jest.fn(() => 'yuri'),
 }));
+
+// Lembretes usam os ajustes do app (perfil único), não os da gaveta
+jest.mock('../src/utils/perfil', () => ({ appSetting: jest.fn() }));
 
 describe('QA Senior - Configuracoes de Notificacao', () => {
   beforeEach(() => {
@@ -18,10 +21,10 @@ describe('QA Senior - Configuracoes de Notificacao', () => {
   });
 
   it('deve agendar UMA notificacao se a frequencia for "once"', async () => {
-    (getSetting as jest.Mock).mockImplementation((key, def) => {
+    (appSetting as jest.Mock).mockImplementation((key: string) => {
       if (key === 'notification_days_before') return '5';
       if (key === 'notification_frequency') return 'once';
-      return def;
+      return key === 'notifications_enabled' ? 'true' : '';
     });
 
     // Vencimento no futuro
@@ -29,13 +32,15 @@ describe('QA Senior - Configuracoes de Notificacao', () => {
     
     // Deve ter agendado apenas 1 notificacao
     expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledTimes(1);
+    // O perfil vai junto, para a tela de lembretes separar os perfis
+    expect((Notifications.scheduleNotificationAsync as jest.Mock).mock.calls[0][0].content.data).toEqual({ docId: '123', profile: 'yuri' });
   });
 
   it('deve agendar MULTIPLAS notificacoes se a frequencia for "daily"', async () => {
-    (getSetting as jest.Mock).mockImplementation((key, def) => {
+    (appSetting as jest.Mock).mockImplementation((key: string) => {
       if (key === 'notification_days_before') return '3';
       if (key === 'notification_frequency') return 'daily';
-      return def;
+      return key === 'notifications_enabled' ? 'true' : '';
     });
 
     await scheduleDueDateReminder('123', 'ENEL', '2026-12-10');
@@ -45,10 +50,10 @@ describe('QA Senior - Configuracoes de Notificacao', () => {
   });
 
   it('deve ignorar notificacoes para datas que ja passaram', async () => {
-    (getSetting as jest.Mock).mockImplementation((key, def) => {
+    (appSetting as jest.Mock).mockImplementation((key: string) => {
       if (key === 'notification_days_before') return '5';
       if (key === 'notification_frequency') return 'once';
-      return def;
+      return key === 'notifications_enabled' ? 'true' : '';
     });
 
     // Vencimento no passado

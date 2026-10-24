@@ -12,8 +12,9 @@ jest.mock('react-native-reanimated', () => {
     useAnimatedStyle: () => ({}),
     withTiming: (val) => val,
     withRepeat: (val) => val,
-    Easing: { linear: () => {} },
+    Easing: { linear: () => {}, quad: () => {}, out: (f) => f },
     FadeInUp: {},
+    ZoomIn: { duration: () => ({}) },
     FadeOutUp: {},
   };
 });
@@ -57,7 +58,7 @@ jest.mock('expo-notifications', () => ({
   requestPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
   setNotificationChannelAsync: jest.fn(),
   AndroidImportance: { MAX: 5 },
-  SchedulableTriggerInputTypes: { DATE: 'date' },
+  SchedulableTriggerInputTypes: { DATE: 'date', TIME_INTERVAL: 'timeInterval' },
 }));
 
 // Mock do expo-sharing
@@ -91,3 +92,7 @@ jest.mock('expo-image-manipulator', () => ({
   manipulateAsync: jest.fn(() => Promise.resolve({ uri: 'file://resized.jpg' })),
   SaveFormat: { JPEG: 'jpeg' },
 }));
+
+// Área segura (barras do sistema) com o mock oficial da biblioteca: telas e componentes
+// que usam useSafeAreaInsets renderizam nos testes sem precisar do SafeAreaProvider
+jest.mock('react-native-safe-area-context', () => require('react-native-safe-area-context/jest/mock').default);
