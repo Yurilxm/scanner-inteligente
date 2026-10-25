@@ -64,7 +64,17 @@ export default function RootLayout() {
         <Stack.Screen name="biblioteca" />
         <Stack.Screen name="detalhes" />
         <Stack.Screen name="configuracoes" />
+        <Stack.Screen name="lembretes" />
+        <Stack.Screen name="perfis" />
+        <Stack.Screen name="perfil" />
+        <Stack.Screen name="conta" />
+        <Stack.Screen name="frase" />
+        <Stack.Screen name="auth-callback" />
+        <Stack.Screen name="gaveta" />
+        <Stack.Screen name="convidar" />
         <Stack.Screen name="ler-convite" />
+        <Stack.Screen name="convite" />
+        <Stack.Screen name="historico" />
         <Stack.Screen name="meu-perfil" />
       </Stack>
     </DocumentProvider>
