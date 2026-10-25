@@ -22,7 +22,8 @@
                                  "package":  "com.yuril.scannerinteligente",
                                  "permissions":  [
                                                      "NOTIFICATIONS",
-                                                     "SCHEDULE_EXACT_ALARM"
+                                                     "SCHEDULE_EXACT_ALARM",
+                                                     "android.permission.CAMERA"
                                                  ]
                              },
                  "web":  {
@@ -70,7 +71,11 @@
                                               "asyncRoutes":  {
                                                                   "web":  true
                                                               }
-                                          }
-                           }
+                                          },
+                               "eas":  {
+                                           "projectId":  "dbff8b1c-2818-48a6-b8a1-12c50033c659"
+                                       }
+                           },
+                 "owner":  "yurilxm"
              }
 }
