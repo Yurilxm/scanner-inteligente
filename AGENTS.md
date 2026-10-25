@@ -39,3 +39,11 @@ Docs: https://docs.expo.dev/eas/index.md
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
 - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
+
+## Este projeto
+
+- Fluxo de desenvolvimento, builds EAS, EAS Update e variáveis: `docs/DESENVOLVIMENTO.md`. Sincronização, criptografia e Supabase: `docs/SINCRONIZACAO.md`. Histórico: `CHANGELOG.md`.
+- Não roda no Expo Go: use o APK do perfil `development` com `npx expo start -c`.
+- Mudança só de JS/TS → `eas update --channel preview --environment preview` (no Windows, pelo PowerShell). Mudança nativa → APK novo (`runtimeVersion` é por fingerprint).
+- Não adicione `react-native-credentials-manager` aos `plugins` do `app.json` (o plugin é só iOS).
+- Nunca coloque em arquivos ou no chat a senha do banco, a secret/service_role key do Supabase nem o Client Secret do Google.

@@ -56,3 +56,12 @@ Controle_Excel/*.xlsx
 
 # Python
 __pycache__/
+
+# Imagens de contas ficticias para teste manual
+contas_teste/
+
+# Cache local do Supabase CLI
+supabase/.temp/
+
+# Credenciais OAuth do Google (contem a chave secreta): nunca versionar
+client_secret*.json
