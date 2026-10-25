@@ -154,7 +154,7 @@ Detalhes em [docs/DESENVOLVIMENTO.md](docs/DESENVOLVIMENTO.md).
 - **Rotas em `src/app/`** (padrão do AGENTS.md). O `ReclassifyModal` é único para a Revisão e os Detalhes, e a formatação fica centralizada em `src/utils/format.ts`. Lint zerado.
 - **Builds na nuvem com EAS:**
   - perfis `development` (dev client), `preview` e `production`;
-  - o projeto `o projeto EAS` usa sempre o mesmo keystore;
+  - o projeto EAS usa sempre o mesmo keystore;
   - não precisa mais de Android Studio nem dos ajustes de Gradle e CMake no Windows.
 - **EAS Update:**
   - mudanças de código chegam aos celulares sem reinstalar;
