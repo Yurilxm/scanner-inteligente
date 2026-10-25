@@ -268,7 +268,8 @@ function extractIssuerFromKeywords(text: string): string | null {
 }
 
 function extractIssuerFromBeneficiary(text: string): string | null {
-  const benMatch = text.match(/(?:BENEFICIARIO|CEDENTE|Beneficiário|Beneficiario)[^A-Z0-9]+([A-Z0-9\s\.\-]{4,50})/i);
+  // Boleto: Beneficiario/Cedente. Nota fiscal: Emitente/Razao Social. (Pagador é o cliente, não o emissor)
+  const benMatch = text.match(/(?:BENEFICIARIO|CEDENTE|EMITENTE|RAZAO SOCIAL)[^A-Z0-9]+([A-Z0-9\s\.\-]{4,50})/i);
   if (!benMatch) return null;
   const name = benMatch[1]
     .replace(/\b(SA|S\.A\.|LTDA|ME|EPP|EIRELI|SOCIEDADE|ANONIMA|S\/A)\b/gi, '')

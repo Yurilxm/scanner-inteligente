@@ -44,7 +44,7 @@ export async function generateCSVFile(documents: SavedDocument[], profile = '') 
   // Um arquivo por perfil, para nao sobrescrever o do outro na pasta do PC
   const safeProfile = profile.replace(/[^a-z0-9_-]/gi, '');
   const file = new File(Paths.document, safeProfile ? `relatorio_${safeProfile}.csv` : 'relatorio_documentos.csv');
-  file.write(csvContent);
+  await file.write(csvContent);
   return { uri: file.uri, content: csvContent };
 }
 

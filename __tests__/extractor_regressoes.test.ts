@@ -77,3 +77,21 @@ describe('parseBRLToCents (valor digitado na revisão)', () => {
     expect(parseBRLToCents(input)).toBeNull();
   });
 });
+
+describe('Emissor em nota fiscal', () => {
+  // Texto real lido pelo OCR do celular (foto da conta de teste 7)
+  const NF_OCR = 'DOCUMENTO DE TESTE- NAO PAGAR- EMPRESA FICTICIA\nDANFE NOTA FISCAL ELETRONICA\nEmitente\nLOJA EXEMPLO DE UTILIDADES LTDA\nData de Emissao\n20/10/2026\nDescricao\nKit de utensilios de cozinha\nVALOR TOTAL DA NOTA:\nR$ 89,90\nDocumento auxiliar da.nota fiscal eletronica\nx';
+
+  it('usa o Emitente como emissor', async () => {
+    const r = await extractFields(NF_OCR);
+    expect(r.documentType).toBe('NOTA_FISCAL');
+    expect(r.issuer).toBe('LOJA EXEMPLO');
+    expect(r.totalAmountCents).toBe(8990);
+    expect(r.dueDate).toBeNull(); // data de emissão não é vencimento
+  });
+
+  it('aceita Razão Social com acento', async () => {
+    const r = await extractFields('NOTA FISCAL Razão Social: PADARIA BOM PAO LTDA VALOR TOTAL R$ 12,00');
+    expect(r.issuer).toBe('PADARIA BOM');
+  });
+});
