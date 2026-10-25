@@ -65,7 +65,15 @@ export async function signInWithGoogle(): Promise<Session | null> {
   });
   if (error || !data?.url) throw new Error(error?.message ?? 'Não foi possível iniciar o login.');
 
-  const result = await WebBrowser.openAuthSessionAsync(data.url, AUTH_REDIRECT);
+  // CORREÇÃO: Injeta a chave na URL caso o SDK do React Native tenha esquecido
+  let authUrl = data.url;
+  const apiKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (apiKey && !authUrl.includes('apikey=')) {
+    const separator = authUrl.includes('?') ? '&' : '?';
+    authUrl += `${separator}apikey=${apiKey}`;
+  }
+
+  const result = await WebBrowser.openAuthSessionAsync(authUrl, AUTH_REDIRECT);
   if (result.type !== 'success') return null;
 
   const { code, error: providerError } = parseAuthRedirect(result.url);

@@ -1,81 +1,90 @@
-﻿{
-    "expo":  {
-                 "name":  "Control",
-                 "slug":  "control-radar",
-                 "version":  "1.0.0",
-                 "orientation":  "portrait",
-                 "icon":  "./assets/icon.png",
-                 "userInterfaceStyle":  "dark",
-                 "ios":  {
-                             "supportsTablet":  true,
-                             "infoPlist":  {
-                                               "NSCameraUsageDescription":  "Permita que o Control Radar use a cÃ¢mera para digitalizar documentos."
-                                           }
-                         },
-                 "android":  {
-                                 "adaptiveIcon":  {
-                                                      "foregroundImage":  "./assets/adaptive-icon.png",
-                                                      "monochromeImage":  "./assets/adaptive-icon.png",
-                                                      "backgroundColor":  "#000000"
-                                                  },
-                                 "predictiveBackGestureEnabled":  false,
-                                 "package":  "com.yuril.scannerinteligente",
-                                 "permissions":  [
-                                                     "NOTIFICATIONS",
-                                                     "SCHEDULE_EXACT_ALARM",
-                                                     "android.permission.CAMERA"
-                                                 ]
-                             },
-                 "web":  {
-                             "favicon":  "./assets/favicon.png"
-                         },
-                 "plugins":  [
-                                 "expo-router",
-                                 [
-                                     "expo-build-properties",
-                                     {
-                                         "android":  {
-                                                         "ndkVersion":  "26.1.10909125",
-                                                         "extraProguardRules":  "-keep class com.margelo.nitro.** { *; }\n-keep class com.margelo.nitro.core.HybridObject { *; }\n-keep class com.margelo.nitro.core.** { *; }\n-keep class expo.modules.documentScanner.** { *; }\n-keep class com.google.mlkit.** { *; }\n-keep class com.google.android.gms.internal.mlkit_vision_text_common.** { *; }\n-keep class com.google.android.gms.internal.mlkit_vision_common.** { *; }\n-keep class expo.modules.kotlin.records.Field { *; }\n-keep @interface expo.modules.kotlin.records.Field { *; }\n-keep class expo.modules.mlkit.** { *; }\n-keep class com.rnmlkit.** { *; }"
-                                                     }
-                                     }
-                                 ],
-                                 "expo-font",
-                                 [
-                                     "expo-splash-screen",
-                                     {
-                                         "image":  "./assets/splash-logo.png",
-                                         "imageWidth":  180,
-                                         "resizeMode":  "contain",
-                                         "backgroundColor":  "#000000"
-                                     }
-                                 ],
-                                 "expo-notifications",
-                                 "expo-sharing",
-                                 "expo-status-bar",
-                                 "expo-secure-store",
-                                 "expo-web-browser",
-                                 [
-                                     "expo-camera",
-                                     {
-                                         "cameraPermission":  "Permita que o Control use a cÃ¢mera para ler o QR code de convite das listas compartilhadas.",
-                                         "recordAudioAndroid":  false,
-                                         "barcodeScannerEnabled":  true
-                                     }
-                                 ],
-                                 "expo-sqlite"
-                             ],
-                 "scheme":  "scannerinteligente",
-                 "extra":  {
-                               "router":  {
-                                              "asyncRoutes":  {
-                                                                  "web":  true
-                                                              }
-                                          },
-                               "eas":  {
-                                           "projectId":  "dbff8b1c-2818-48a6-b8a1-12c50033c659"
-                                       }
-                           },
-                 "owner":  "yurilxm"
-             }
+{
+  "expo": {
+    "name": "Control",
+    "slug": "control-radar",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Permita que o Control Radar use a cÃ¢mera para digitalizar documentos."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "monochromeImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.yuril.scannerinteligente",
+      "permissions": [
+        "NOTIFICATIONS",
+        "SCHEDULE_EXACT_ALARM",
+        "android.permission.CAMERA",
+        "NOTIFICATIONS",
+        "SCHEDULE_EXACT_ALARM",
+        "android.permission.CAMERA"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "ndkVersion": "26.1.10909125",
+            "extraProguardRules": "-keep class com.margelo.nitro.** { *; }\n-keep class com.margelo.nitro.core.HybridObject { *; }\n-keep class com.margelo.nitro.core.** { *; }\n-keep class expo.modules.documentScanner.** { *; }\n-keep class com.google.mlkit.** { *; }\n-keep class com.google.android.gms.internal.mlkit_vision_text_common.** { *; }\n-keep class com.google.android.gms.internal.mlkit_vision_common.** { *; }\n-keep class expo.modules.kotlin.records.Field { *; }\n-keep @interface expo.modules.kotlin.records.Field { *; }\n-keep class expo.modules.mlkit.** { *; }\n-keep class com.rnmlkit.** { *; }"
+          }
+        }
+      ],
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-logo.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#000000"
+        }
+      ],
+      "expo-notifications",
+      "expo-sharing",
+      "expo-status-bar",
+      "expo-secure-store",
+      "expo-web-browser",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Permita que o Control use a cÃ¢mera para ler o QR code de convite das listas compartilhadas.",
+          "recordAudioAndroid": false,
+          "barcodeScannerEnabled": true
+        }
+      ],
+      "expo-sqlite"
+    ],
+    "scheme": "scannerinteligente",
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "dbff8b1c-2818-48a6-b8a1-12c50033c659"
+      }
+    },
+    "owner": "yurilxm",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/dbff8b1c-2818-48a6-b8a1-12c50033c659"
+    }
+  }
 }
