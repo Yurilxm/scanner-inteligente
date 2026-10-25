@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Modal, View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
-import { Theme } from '../constants/theme';
+import { Modal, View, Text, TextInput, Pressable } from 'react-native';
+import { makeStyles } from '../theme';
 import { getLearnedPatternForCategory, saveLearnedCategory } from '../db/database';
 
 // Sugere a palavra-chave: a ja aprendida para a categoria, senao o beneficiario, senao a primeira palavra longa
@@ -8,7 +8,7 @@ export function suggestKeyword(category: string, ocrText: string): string {
   const existing = getLearnedPatternForCategory(category);
   if (existing) return existing.toUpperCase();
 
-  const benMatch = ocrText.match(/(?:BENEFICIARIO|CEDENTE)[^A-Z0-9]+([A-Z0-9\s]{4,40})/i);
+  const benMatch = ocrText.match(/(?:BENEFICI[AÁ]RIO|CEDENTE|EMITENTE|RAZ[AÃ]O SOCIAL)[^A-Z0-9]+([A-Z0-9\s]{4,40})/i);
   if (benMatch) return benMatch[1].trim().split(' ')[0].toUpperCase();
 
   const words = ocrText.split(/\s+/).filter(w => w.length > 4 && /^[A-Za-z]+$/.test(w));
@@ -27,6 +27,7 @@ type Props = {
 
 // Renderize condicionalmente ({visible && <ReclassifyModal />}) para recalcular a sugestao a cada abertura
 export function ReclassifyModal({ initialCategory, ocrText, title = 'Reclassificar e Aprender', confirmText = 'Aprender', onSaved, onCancel }: Props) {
+  const styles = useStyles();
   const [category, setCategory] = useState(initialCategory);
   const [keyword, setKeyword] = useState(() => suggestKeyword(initialCategory, ocrText));
 
@@ -78,25 +79,25 @@ export function ReclassifyModal({ initialCategory, ocrText, title = 'Reclassific
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center' },
-  box: { backgroundColor: Theme.colors.panel, padding: 20, borderRadius: 12, width: '80%', borderWidth: 1, borderColor: Theme.colors.border },
-  title: { fontSize: 18, fontFamily: Theme.fonts.bold, color: Theme.colors.primary, marginBottom: 16, textAlign: 'center' },
-  help: { color: Theme.colors.textSecondary, fontSize: 12, marginBottom: 12, textAlign: 'center' },
-  label: { fontSize: 13, fontFamily: Theme.fonts.medium, color: Theme.colors.primary, marginTop: 12, marginBottom: 4 },
+const useStyles = makeStyles(theme => ({
+  container: { flex: 1, backgroundColor: theme.colors.overlay, justifyContent: 'center', alignItems: 'center' },
+  box: { backgroundColor: theme.colors.panel, padding: 20, borderRadius: 12, width: '80%', borderWidth: 1, borderColor: theme.colors.border },
+  title: { fontSize: 18, fontFamily: theme.fonts.bold, color: theme.colors.primary, marginBottom: 16, textAlign: 'center' },
+  help: { color: theme.colors.textSecondary, fontSize: 12, marginBottom: 12, textAlign: 'center' },
+  label: { fontSize: 13, fontFamily: theme.fonts.medium, color: theme.colors.primary, marginTop: 12, marginBottom: 4 },
   input: {
     borderWidth: 1,
-    borderColor: Theme.colors.border,
+    borderColor: theme.colors.border,
     borderRadius: 8,
     padding: 12,
     fontSize: 15,
-    fontFamily: Theme.fonts.regular,
-    color: Theme.colors.text,
-    backgroundColor: Theme.colors.panel,
+    fontFamily: theme.fonts.regular,
+    color: theme.colors.text,
+    backgroundColor: theme.colors.panel,
   },
   actions: { flexDirection: 'row', gap: 12, marginTop: 16 },
-  cancel: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: Theme.colors.border },
-  cancelText: { color: Theme.colors.textSecondary, fontFamily: Theme.fonts.bold },
-  confirm: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', backgroundColor: Theme.colors.primary },
-  confirmText: { color: Theme.colors.background, fontFamily: Theme.fonts.bold },
-});
+  cancel: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: theme.colors.border },
+  cancelText: { color: theme.colors.textSecondary, fontFamily: theme.fonts.bold },
+  confirm: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', backgroundColor: theme.colors.primary },
+  confirmText: { color: theme.colors.background, fontFamily: theme.fonts.bold },
+}));

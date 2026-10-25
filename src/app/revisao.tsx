@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, ActivityIndicator, Image, Pressable, Alert, KeyboardAvoidingView, Platform, ScrollView, Modal, BackHandler } from 'react-native';
+import { View, Text, TextInput, Image, Pressable, Alert, KeyboardAvoidingView, Platform, ScrollView, Modal, BackHandler } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ZoomableImage } from '../components/ZoomableImage';
 import { router } from 'expo-router';
 import { File } from 'expo-file-system';
-import { saveDocument, getLearnedCategories, getSetting } from '../db/database';
+import { saveDocument, getLearnedCategories } from '../db/database';
+import { appSetting } from '../utils/perfil';
+import { scheduleActiveSync } from '../sync/schedule';
 import { useDocument } from '../context/DocumentContext';
 import { extractDocumentData } from '../utils/ocr';
 import { cleanupDebugFiles } from '../utils/files';
@@ -16,12 +19,16 @@ import { brDateToISO, centsToDecimal, isoToBR, maskDateInput } from '../utils/fo
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ScannerBackground } from '../components/ScannerBackground';
-import { Theme } from '../constants/theme';
+import { RadarLoader } from '../components/RadarLoader';
+import { makeStyles, useTheme } from '../theme';
 import { CustomModal } from '../components/CustomModal';
 import { ReclassifyModal } from '../components/ReclassifyModal';
 import { requestNotificationPermissions, scheduleDueDateReminder } from '../utils/notifications';
 
 export default function RevisaoScreen() {
+  const theme = useTheme();
+  const styles = useStyles();
+  const insets = useSafeAreaInsets();
   const { imageUri, ocrText, setOcrText, fields, setFields, reset } = useDocument();
   const [isLoading, setIsLoading] = useState(true);
   const [isImageVisible, setIsImageVisible] = useState(false);
@@ -67,7 +74,7 @@ export default function RevisaoScreen() {
           setOcrText(text);
           // 2. Extracao usando os blocos (se disponiveis)
           const extracted = await extractFields(rawData, getLearnedCategories(), {
-            allowCnpjLookup: getSetting('cnpj_lookup_enabled', 'false') === 'true',
+            allowCnpjLookup: appSetting('cnpj_lookup_enabled') === 'true',
           });
           setFields(extracted);
 
@@ -143,6 +150,7 @@ export default function RevisaoScreen() {
     setIsSaving(true);
     try {
       const savedId = saveDocument(imageUri!, ocrText || '', finalFields, paymentDateIso);
+      scheduleActiveSync();
       
       try {
         // Conta salva já paga não precisa de lembrete
@@ -162,15 +170,17 @@ export default function RevisaoScreen() {
   };
 
   return (
-    <LinearGradient colors={[Theme.colors.background, Theme.colors.backgroundGradient]} style={styles.container}>
+    <LinearGradient colors={[theme.colors.background, theme.colors.backgroundGradient]} style={styles.container}>
       <ScannerBackground />
+      {/* Área útil: nada fica atrás da barra de status nem dos botões de navegação do celular */}
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom', 'left', 'right']}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 60, paddingBottom: 8 }}>
-          <Text style={{ color: '#00d4ff', fontSize: 14, fontFamily: Theme.fonts.bold }}>REVISAO</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }}>
+          <Text style={{ color: theme.colors.primary, fontSize: 14, fontFamily: theme.fonts.bold }}>REVISAO</Text>
           <Pressable
             onPress={async () => {
               if (!ocrText) return;
@@ -187,7 +197,7 @@ export default function RevisaoScreen() {
               }
             }}
           >
-            <Text style={{ color: '#3fb950', fontSize: 12, fontFamily: Theme.fonts.bold }}>EXPORTAR OCR</Text>
+            <Text style={{ color: theme.colors.success, fontSize: 12, fontFamily: theme.fonts.bold }}>EXPORTAR OCR</Text>
           </Pressable>
         </View>
         <Pressable onPress={() => setIsImageVisible(true)} style={styles.imageContainer}>
@@ -197,7 +207,7 @@ export default function RevisaoScreen() {
         <Modal visible={isImageVisible} transparent={true} animationType="fade">
           <GestureHandlerRootView style={{ flex: 1 }}>
             <View style={styles.modalContainer}>
-              <Pressable style={styles.modalClose} onPress={() => setIsImageVisible(false)}>
+              <Pressable style={[styles.modalClose, { top: insets.top + 16 }]} onPress={() => setIsImageVisible(false)}>
                 <MaterialCommunityIcons name="close" size={32} color="#fff" />
               </Pressable>
               {imageUri && <ZoomableImage uri={imageUri} />}
@@ -207,7 +217,7 @@ export default function RevisaoScreen() {
 
         {isLoading ? (
           <View style={styles.loadingBox}>
-            <ActivityIndicator size="large" color={Theme.colors.primary} />
+            <RadarLoader size={56} color={theme.colors.primary} />
             <Text style={styles.loadingText}>Processando OCR...</Text>
             <Text style={[styles.loadingText, { fontSize: 12, marginTop: 8 }]}>
               Consultando dados do emissor...
@@ -226,7 +236,7 @@ export default function RevisaoScreen() {
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, marginBottom: 4 }}>
               <Text style={styles.label}>Emissor</Text>
               <Pressable onPress={() => setReclassifyVisible(true)}>
-                <Text style={{ color: Theme.colors.primary, fontSize: 12, fontFamily: Theme.fonts.bold }}>Reclassificar e Aprender</Text>
+                <Text style={{ color: theme.colors.primary, fontSize: 12, fontFamily: theme.fonts.bold }}>Reclassificar e Aprender</Text>
               </Pressable>
             </View>
             <TextInput style={styles.input} value={editIssuer} onChangeText={setEditIssuer} placeholder="Nao encontrado" />
@@ -268,6 +278,7 @@ export default function RevisaoScreen() {
         </Pressable>
       </View>
       </KeyboardAvoidingView>
+      </SafeAreaView>
 
       {reclassifyVisible && (
         <ReclassifyModal
@@ -299,7 +310,7 @@ export default function RevisaoScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(theme => ({
   container: { flex: 1 },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 24 },
@@ -310,21 +321,21 @@ const styles = StyleSheet.create({
   },
   image: { width: '100%', height: '100%' },
   loadingBox: { padding: 40, alignItems: 'center', justifyContent: 'center' },
-  loadingText: { marginTop: 12, color: '#555' },
+  loadingText: { marginTop: 12, color: theme.colors.textSecondary },
   formContainer: { padding: 16 },
-  sectionTitle: { fontSize: 18, fontFamily: Theme.fonts.bold, color: Theme.colors.primary, marginTop: 16, marginBottom: 8 },
-  helpText: { fontSize: 13, fontFamily: Theme.fonts.regular, color: Theme.colors.textSecondary, marginBottom: 16 },
-  label: { fontSize: 13, fontFamily: Theme.fonts.medium, color: Theme.colors.primary, marginTop: 12, marginBottom: 4 },
-  valueText: { fontSize: 16, fontFamily: Theme.fonts.regular, color: Theme.colors.text, paddingVertical: 4 },
+  sectionTitle: { fontSize: 18, fontFamily: theme.fonts.bold, color: theme.colors.primary, marginTop: 16, marginBottom: 8 },
+  helpText: { fontSize: 13, fontFamily: theme.fonts.regular, color: theme.colors.textSecondary, marginBottom: 16 },
+  label: { fontSize: 13, fontFamily: theme.fonts.medium, color: theme.colors.primary, marginTop: 12, marginBottom: 4 },
+  valueText: { fontSize: 16, fontFamily: theme.fonts.regular, color: theme.colors.text, paddingVertical: 4 },
   input: {
     borderWidth: 1,
-    borderColor: Theme.colors.border,
+    borderColor: theme.colors.border,
     borderRadius: 8,
     padding: 12,
     fontSize: 15,
-    fontFamily: Theme.fonts.regular,
-    color: Theme.colors.text,
-    backgroundColor: Theme.colors.panel,
+    fontFamily: theme.fonts.regular,
+    color: theme.colors.text,
+    backgroundColor: theme.colors.panel,
   },
   textArea: { height: 150, marginTop: 8 },
   modalContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center', paddingTop: 50, paddingBottom: 50 },
@@ -333,27 +344,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 16,
     borderTopWidth: 1,
-    borderColor: Theme.colors.border,
+    borderColor: theme.colors.border,
     gap: 12,
-    backgroundColor: Theme.colors.panel,
+    backgroundColor: theme.colors.panel,
   },
   button: {
     flex: 1,
-    backgroundColor: Theme.colors.primary,
+    backgroundColor: theme.colors.primary,
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
   },
-  buttonText: { color: Theme.colors.background, fontFamily: Theme.fonts.bold, fontSize: 16 },
+  buttonText: { color: theme.colors.background, fontFamily: theme.fonts.bold, fontSize: 16 },
   buttonSecondary: {
     flex: 1,
-    backgroundColor: Theme.colors.panel,
+    backgroundColor: theme.colors.panel,
     borderWidth: 1,
-    borderColor: Theme.colors.border,
+    borderColor: theme.colors.border,
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: 'center',
   },
-  buttonTextSecondary: { color: Theme.colors.primary, fontFamily: Theme.fonts.medium, fontSize: 16 },
+  buttonTextSecondary: { color: theme.colors.primary, fontFamily: theme.fonts.medium, fontSize: 16 },
 
-});
+}));

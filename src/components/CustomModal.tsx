@@ -1,6 +1,6 @@
 import React from 'react';
-import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
-import { Theme } from '../constants/theme';
+import { Modal, View, Text, Pressable } from 'react-native';
+import { makeStyles } from '../theme';
 
 type Props = {
   visible: boolean;
@@ -14,6 +14,7 @@ type Props = {
 };
 
 export function CustomModal({ visible, title, message, confirmText = 'OK', cancelText, onConfirm, onCancel, isDestructive }: Props) {
+  const styles = useStyles();
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.overlay}>
@@ -37,17 +38,17 @@ export function CustomModal({ visible, title, message, confirmText = 'OK', cance
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  content: { backgroundColor: Theme.colors.panel, borderRadius: 16, padding: 24, width: '100%', maxWidth: 320, borderWidth: 1, borderColor: Theme.colors.border },
-  title: { fontFamily: Theme.fonts.bold, fontSize: 20, color: Theme.colors.text, marginBottom: 8 },
-  message: { fontFamily: Theme.fonts.regular, fontSize: 15, color: Theme.colors.textSecondary, marginBottom: 24, lineHeight: 22 },
+const useStyles = makeStyles(theme => ({
+  overlay: { flex: 1, backgroundColor: theme.colors.overlay, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  content: { backgroundColor: theme.colors.panel, borderRadius: 16, padding: 24, width: '100%', maxWidth: 320, borderWidth: 1, borderColor: theme.colors.border },
+  title: { fontFamily: theme.fonts.bold, fontSize: 20, color: theme.colors.text, marginBottom: 8 },
+  message: { fontFamily: theme.fonts.regular, fontSize: 15, color: theme.colors.textSecondary, marginBottom: 24, lineHeight: 22 },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12 },
   button: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, alignItems: 'center' },
   cancelButton: { backgroundColor: 'transparent' },
-  confirmButton: { backgroundColor: Theme.colors.primary },
-  destructiveButton: { backgroundColor: 'transparent', borderWidth: 1, borderColor: Theme.colors.danger },
-  cancelText: { fontFamily: Theme.fonts.medium, fontSize: 15, color: Theme.colors.textSecondary },
-  confirmText: { fontFamily: Theme.fonts.bold, fontSize: 15, color: Theme.colors.background },
-  destructiveText: { color: Theme.colors.danger },
-});
+  confirmButton: { backgroundColor: theme.colors.primary },
+  destructiveButton: { backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.colors.danger },
+  cancelText: { fontFamily: theme.fonts.medium, fontSize: 15, color: theme.colors.textSecondary },
+  confirmText: { fontFamily: theme.fonts.bold, fontSize: 15, color: theme.colors.background },
+  destructiveText: { color: theme.colors.danger },
+}));

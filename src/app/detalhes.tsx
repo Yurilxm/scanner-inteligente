@@ -1,21 +1,29 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, Pressable, ScrollView, Modal, TextInput, BackHandler, Alert } from 'react-native';
+import { View, Text, Image, Pressable, ScrollView, Modal, TextInput, BackHandler, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { getDocumentById, deleteDocumentById, togglePaidStatus, updateDocumentIssuer, SavedDocument } from '../db/database';
+import { getCurrentProfile, getDocumentById, deleteDocumentById, moveDocumentToProfile, togglePaidStatus, updateDocumentIssuer, SavedDocument } from '../db/database';
+import { scheduleActiveSync } from '../sync/schedule';
 import { File } from 'expo-file-system';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ScannerBackground } from '../components/ScannerBackground';
-import { Theme } from '../constants/theme';
+import { makeStyles, useTheme } from '../theme';
 import { CustomModal } from '../components/CustomModal';
 import { ZoomableImage } from '../components/ZoomableImage';
-import { cancelDueDateReminders, syncDueDateReminders } from '../utils/notifications';
+import { cancelDueDateReminders, scheduleDueDateReminder, syncDueDateReminders } from '../utils/notifications';
 import { ReclassifyModal } from '../components/ReclassifyModal';
 import { brDateToISO, formatBRL, isoToBR, maskDateInput, todayISO } from '../utils/format';
+import { getDiagnosticsUrl, sendDiagnostics } from '../utils/devDiagnostics';
+import { Profile, canEdit, canPay, listProfiles } from '../db/profiles';
+import { ProfileAvatar } from '../components/ProfileAvatar';
+import { activeProfileRole } from '../utils/profileManager';
 
 export default function DetalhesScreen() {
+  const theme = useTheme();
+  const styles = useStyles();
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [doc, setDoc] = useState<SavedDocument | null>(() => (id ? getDocumentById(id) : null));
   const [zoomVisible, setZoomVisible] = useState(false);
@@ -23,6 +31,12 @@ export default function DetalhesScreen() {
   const [payModalVisible, setPayModalVisible] = useState(false);
   const [payDateInput, setPayDateInput] = useState('');
   const [reclassifyVisible, setReclassifyVisible] = useState(false);
+  const [moveVisible, setMoveVisible] = useState(false);
+  const [moved, setMoved] = useState<string | null>(null);
+  // Numa gaveta compartilhada, cada um só vê os botões que o papel dele permite
+  const role = activeProfileRole();
+  // Para onde dá para mover: outras gavetas em que esta pessoa pode adicionar contas
+  const moveTargets = listProfiles().filter(p => p.id !== getCurrentProfile() && canEdit(p.role));
 
   useEffect(() => {
     const onBackPress = () => {
@@ -30,22 +44,53 @@ export default function DetalhesScreen() {
       if (payModalVisible) { setPayModalVisible(false); return true; }
       if (deleteVisible) { setDeleteVisible(false); return true; }
       if (reclassifyVisible) { setReclassifyVisible(false); return true; }
+      if (moveVisible) { setMoveVisible(false); return true; }
       return false;
     };
     const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => subscription.remove();
-  }, [zoomVisible, payModalVisible, deleteVisible, reclassifyVisible]);
+  }, [zoomVisible, payModalVisible, deleteVisible, reclassifyVisible, moveVisible]);
 
   if (!doc) return null;
 
+  const handleSendDiagnostics = async () => {
+    try {
+      await sendDiagnostics(doc);
+      Alert.alert('Diagnóstico enviado', 'Foto, texto do OCR e campos foram enviados para o PC.');
+    } catch (e) {
+      Alert.alert('Falha ao enviar', e instanceof Error ? e.message : String(e));
+    }
+  };
+
   const handleDelete = () => {
     try {
-      const file = new File(doc.imageUri);
-      if (file.exists) file.delete();
+      if (doc.imageUri) {
+        const file = new File(doc.imageUri);
+        if (file.exists) file.delete();
+      }
     } catch {}
     deleteDocumentById(doc.id);
+    scheduleActiveSync();
     cancelDueDateReminders(doc.id).catch(e => console.warn('Erro ao cancelar notificacao', e));
     router.back();
+  };
+
+  // Leva a conta para outra gaveta; as duas sincronizam (a de origem envia a exclusão, a de destino a conta)
+  const handleMove = (target: Profile) => {
+    try {
+      moveDocumentToProfile(doc.id, target.id);
+    } catch (e) {
+      setMoveVisible(false);
+      Alert.alert('Não foi possível mover', e instanceof Error ? e.message : String(e));
+      return;
+    }
+    cancelDueDateReminders(doc.id)
+      .then(() => (doc.isPaid !== 1 && doc.issuer && doc.dueDate ? scheduleDueDateReminder(doc.id, doc.issuer, doc.dueDate, target.id) : undefined))
+      .catch(e => console.warn('Lembrete da conta movida', e));
+    scheduleActiveSync();
+    import('../sync/engine').then(engine => engine.syncProfile(target.id)).catch(e => console.warn('Sincronização', e));
+    setMoveVisible(false);
+    setMoved(target.name);
   };
 
   const updateDoc = (updated: SavedDocument) => {
@@ -55,6 +100,7 @@ export default function DetalhesScreen() {
 
   const handleReclassified = (category: string) => {
     updateDocumentIssuer(doc.id, category);
+    scheduleActiveSync();
     updateDoc({ ...doc, issuer: category });
     setReclassifyVisible(false);
   };
@@ -71,32 +117,36 @@ export default function DetalhesScreen() {
       return;
     }
     togglePaidStatus(doc.id, doc.isPaid, formattedDate);
+    scheduleActiveSync();
     updateDoc({ ...doc, isPaid: 1, paymentDate: formattedDate });
     setPayModalVisible(false);
   };
 
   const handleTogglePaid = () => {
     togglePaidStatus(doc.id, doc.isPaid);
+    scheduleActiveSync();
     updateDoc({ ...doc, isPaid: doc.isPaid === 1 ? 0 : 1, paymentDate: null });
   };
 
   return (
-    <LinearGradient colors={[Theme.colors.background, Theme.colors.backgroundGradient]} style={styles.container}>
+    <LinearGradient colors={[theme.colors.background, theme.colors.backgroundGradient]} style={styles.container}>
       <ScannerBackground />
 
       <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom', 'left', 'right']}>
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} style={styles.backButton}>
-            <MaterialCommunityIcons name="arrow-left" size={28} color={Theme.colors.primary} />
+            <MaterialCommunityIcons name="arrow-left" size={28} color={theme.colors.primary} />
           </Pressable>
           <Text style={styles.headerTitle}>DETALHES</Text>
           <View style={{ width: 28 }} />
         </View>
         <ScrollView contentContainerStyle={styles.content}>
-          <Pressable onPress={() => setZoomVisible(true)}>
-            <Image source={{ uri: doc.imageUri }} style={styles.image} resizeMode="contain" />
-            <Text style={styles.hint}>Toque na imagem para ampliar</Text>
-          </Pressable>
+          {doc.imageUri ? (
+            <Pressable onPress={() => setZoomVisible(true)}>
+              <Image source={{ uri: doc.imageUri }} style={styles.image} resizeMode="contain" />
+              <Text style={styles.hint}>Toque na imagem para ampliar</Text>
+            </Pressable>
+          ) : null}
 
           <View style={styles.infoBox}>
             <Text style={styles.label}>Tipo de Documento</Text>
@@ -115,7 +165,7 @@ export default function DetalhesScreen() {
             <Text style={styles.value}>{formatBRL(doc.totalAmountCents) || '-'}</Text>
 
             <Text style={styles.label}>Situacao</Text>
-            <Text style={[styles.value, { color: doc.isPaid ? Theme.colors.success : Theme.colors.warning }]}>
+            <Text style={[styles.value, { color: doc.isPaid ? theme.colors.success : theme.colors.warning }]}>
               {doc.isPaid ? 'PAGO' : 'PENDENTE'}
             </Text>
             {doc.isPaid === 1 && doc.paymentDate && (
@@ -126,27 +176,45 @@ export default function DetalhesScreen() {
             )}
           </View>
 
-          <Pressable style={styles.toggleButton} onPress={doc.isPaid ? handleTogglePaid : handleOpenPayModal}>
-            <Text style={styles.toggleText}>{doc.isPaid ? 'Desmarcar Pago' : 'Marcar como Pago'}</Text>
-          </Pressable>
+          {canPay(role) && (
+            <Pressable style={styles.toggleButton} onPress={doc.isPaid ? handleTogglePaid : handleOpenPayModal}>
+              <Text style={styles.toggleText}>{doc.isPaid ? 'Desmarcar Pago' : 'Marcar como Pago'}</Text>
+            </Pressable>
+          )}
 
-          <Pressable style={styles.reclassifyButton} onPress={() => setReclassifyVisible(true)}>
-            <Text style={styles.reclassifyText}>Reclassificar Conta</Text>
-          </Pressable>
+          {canEdit(role) && (
+            <>
+              <Pressable style={styles.reclassifyButton} onPress={() => setReclassifyVisible(true)}>
+                <Text style={styles.reclassifyText}>Reclassificar Conta</Text>
+              </Pressable>
 
-          <Pressable style={styles.deleteButton} onPress={() => setDeleteVisible(true)}>
-            <Text style={styles.deleteText}>Excluir Documento</Text>
-          </Pressable>
+              {moveTargets.length > 0 && (
+                <Pressable style={styles.reclassifyButton} onPress={() => setMoveVisible(true)}>
+                  <Text style={styles.reclassifyText}>Mover para outra gaveta</Text>
+                </Pressable>
+              )}
+
+              <Pressable style={styles.deleteButton} onPress={() => setDeleteVisible(true)}>
+                <Text style={styles.deleteText}>Excluir Documento</Text>
+              </Pressable>
+            </>
+          )}
+
+          {getDiagnosticsUrl() && (
+            <Pressable style={styles.deleteButton} onPress={handleSendDiagnostics}>
+              <Text style={styles.reclassifyText}>Enviar diagnóstico para o PC (dev)</Text>
+            </Pressable>
+          )}
         </ScrollView>
       </SafeAreaView>
 
       <Modal visible={zoomVisible} transparent animationType="fade">
         <GestureHandlerRootView style={{ flex: 1 }}>
           <View style={styles.modalContainer}>
-            <Pressable style={styles.modalClose} onPress={() => setZoomVisible(false)}>
+            <Pressable style={[styles.modalClose, { top: insets.top + 16 }]} onPress={() => setZoomVisible(false)}>
               <MaterialCommunityIcons name="close" size={32} color="#fff" />
             </Pressable>
-            <ZoomableImage uri={doc.imageUri} />
+            {doc.imageUri ? <ZoomableImage uri={doc.imageUri} /> : null}
           </View>
         </GestureHandlerRootView>
       </Modal>
@@ -186,6 +254,31 @@ export default function DetalhesScreen() {
         />
       )}
 
+      <Modal visible={moveVisible} transparent animationType="fade" onRequestClose={() => setMoveVisible(false)}>
+        <Pressable style={styles.moveOverlay} onPress={() => setMoveVisible(false)}>
+          <Pressable style={[styles.moveSheet, { paddingBottom: insets.bottom + 20 }]}>
+            <Text style={styles.moveTitle}>Mover para qual gaveta?</Text>
+            <Text style={styles.moveHelp}>A conta sai desta gaveta e vai, com a foto, para a escolhida.</Text>
+            <ScrollView style={{ maxHeight: 360 }}>
+              {moveTargets.map(target => (
+                <Pressable key={target.id} style={styles.moveRow} onPress={() => handleMove(target)}>
+                  <ProfileAvatar name={target.name} color={target.color} icon={target.icon} photoUri={null} size={36} />
+                  <Text style={styles.moveName} numberOfLines={1}>{target.name}</Text>
+                  {target.vaultId && <MaterialCommunityIcons name="cloud-check-outline" size={18} color={theme.colors.textSecondary} />}
+                </Pressable>
+              ))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <CustomModal
+        visible={!!moved}
+        title="Conta movida"
+        message={`Ela está agora na gaveta "${moved ?? ''}".`}
+        onConfirm={() => { setMoved(null); router.back(); }}
+      />
+
       <CustomModal
         visible={deleteVisible}
         title="Excluir Documento"
@@ -200,32 +293,38 @@ export default function DetalhesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(theme => ({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
   backButton: { padding: 4 },
-  headerTitle: { fontSize: 20, fontFamily: Theme.fonts.bold, color: Theme.colors.primary, letterSpacing: 1 },
+  headerTitle: { fontSize: 20, fontFamily: theme.fonts.bold, color: theme.colors.primary, letterSpacing: 1 },
   content: { padding: 16, marginTop: 0 },
   image: { width: '100%', height: 250, borderRadius: 12, backgroundColor: '#000' },
-  hint: { textAlign: 'center', color: Theme.colors.textSecondary, fontSize: 12, marginTop: 8, fontFamily: Theme.fonts.regular },
-  infoBox: { backgroundColor: Theme.colors.panel, padding: 16, borderRadius: 12, marginTop: 16, borderWidth: 1, borderColor: Theme.colors.border },
-  label: { color: Theme.colors.primary, fontSize: 13, fontFamily: Theme.fonts.medium, marginTop: 8 },
-  value: { color: Theme.colors.text, fontSize: 16, fontFamily: Theme.fonts.regular },
-  toggleButton: { backgroundColor: Theme.colors.primary, padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 24 },
-  toggleText: { fontFamily: Theme.fonts.bold, color: Theme.colors.background, fontSize: 16 },
+  hint: { textAlign: 'center', color: theme.colors.textSecondary, fontSize: 12, marginTop: 8, fontFamily: theme.fonts.regular },
+  infoBox: { backgroundColor: theme.colors.panel, padding: 16, borderRadius: 12, marginTop: 16, borderWidth: 1, borderColor: theme.colors.border },
+  label: { color: theme.colors.primary, fontSize: 13, fontFamily: theme.fonts.medium, marginTop: 8 },
+  value: { color: theme.colors.text, fontSize: 16, fontFamily: theme.fonts.regular },
+  toggleButton: { backgroundColor: theme.colors.primary, padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 24 },
+  toggleText: { fontFamily: theme.fonts.bold, color: theme.colors.background, fontSize: 16 },
 
-  reclassifyButton: { padding: 16, alignItems: 'center', marginTop: 8, borderWidth: 1, borderColor: Theme.colors.primary, borderRadius: 12 },
-  reclassifyText: { fontFamily: Theme.fonts.medium, color: Theme.colors.primary, fontSize: 16 },
+  reclassifyButton: { padding: 16, alignItems: 'center', marginTop: 8, borderWidth: 1, borderColor: theme.colors.primary, borderRadius: 12 },
+  reclassifyText: { fontFamily: theme.fonts.medium, color: theme.colors.primary, fontSize: 16 },
   deleteButton: { padding: 16, alignItems: 'center', marginTop: 8 },
-  deleteText: { fontFamily: Theme.fonts.medium, color: Theme.colors.danger, fontSize: 16 },
+  deleteText: { fontFamily: theme.fonts.medium, color: theme.colors.danger, fontSize: 16 },
   modalContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', alignItems: 'center', paddingTop: 50, paddingBottom: 50 },
   modalClose: { position: 'absolute', top: 40, right: 20, zIndex: 10 },
-  payModalBox: { backgroundColor: Theme.colors.panel, padding: 20, borderRadius: 12, width: '80%', borderWidth: 1, borderColor: Theme.colors.border },
-  payModalTitle: { fontSize: 18, fontFamily: Theme.fonts.bold, color: Theme.colors.primary, marginBottom: 16, textAlign: 'center' },
-  payInput: { backgroundColor: Theme.colors.background, color: Theme.colors.text, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: Theme.colors.border, fontFamily: Theme.fonts.regular, marginBottom: 16, textAlign: 'center' },
+  payModalBox: { backgroundColor: theme.colors.panel, padding: 20, borderRadius: 12, width: '80%', borderWidth: 1, borderColor: theme.colors.border },
+  payModalTitle: { fontSize: 18, fontFamily: theme.fonts.bold, color: theme.colors.primary, marginBottom: 16, textAlign: 'center' },
+  payInput: { backgroundColor: theme.colors.background, color: theme.colors.text, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: theme.colors.border, fontFamily: theme.fonts.regular, marginBottom: 16, textAlign: 'center' },
   payActions: { flexDirection: 'row', gap: 12 },
-  payCancel: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: Theme.colors.border },
-  payCancelText: { color: Theme.colors.textSecondary, fontFamily: Theme.fonts.bold },
-  payConfirm: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', backgroundColor: Theme.colors.primary },
-  payConfirmText: { color: Theme.colors.background, fontFamily: Theme.fonts.bold },
-});
+  payCancel: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: theme.colors.border },
+  payCancelText: { color: theme.colors.textSecondary, fontFamily: theme.fonts.bold },
+  payConfirm: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', backgroundColor: theme.colors.primary },
+  payConfirmText: { color: theme.colors.background, fontFamily: theme.fonts.bold },
+  moveOverlay: { flex: 1, backgroundColor: theme.colors.overlay, justifyContent: 'flex-end' },
+  moveSheet: { backgroundColor: theme.colors.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, gap: 10, borderWidth: 1, borderColor: theme.colors.border },
+  moveTitle: { color: theme.colors.text, fontFamily: theme.fonts.bold, fontSize: 18 },
+  moveHelp: { color: theme.colors.textSecondary, fontFamily: theme.fonts.regular, fontSize: 13 },
+  moveRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.panel, marginTop: 8 },
+  moveName: { flex: 1, color: theme.colors.text, fontFamily: theme.fonts.bold, fontSize: 15 },
+}));

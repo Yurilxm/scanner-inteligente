@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
-import { View, Text, SectionList, FlatList, StyleSheet, Pressable, Image, TextInput, Modal, ScrollView } from 'react-native';
+import { View, Text, SectionList, FlatList, Pressable, Image, TextInput, Modal, ScrollView, Alert } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { getDocuments, deleteDocumentById, togglePaidStatus, getCurrentProfile, SavedDocument } from '../db/database';
 import { generateCSVFile, generatePDFFile, shareFile } from '../utils/export';
@@ -13,32 +13,47 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ScannerBackground } from '../components/ScannerBackground';
-import { Theme } from '../constants/theme';
+import { makeStyles, useTheme } from '../theme';
 import { CustomModal } from '../components/CustomModal';
+import { scheduleActiveSync } from '../sync/schedule';
+import { canEdit, canPay } from '../db/profiles';
+import { activeProfileRole } from '../utils/profileManager';
 
 type FilterType = 'TODAS' | 'PENDENTES' | 'PAGAS';
 
 export default function BibliotecaScreen() {
+  const theme = useTheme();
+  const styles = useStyles();
   const [documents, setDocuments] = useState<SavedDocument[]>([]);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('TODAS');
   const [docToDelete, setDocToDelete] = useState<SavedDocument | null>(null);
   const [csvPreview, setCsvPreview] = useState<{ visible: boolean, content: string, uri: string }>({ visible: false, content: '', uri: '' });
   const [selectedIssuer, setSelectedIssuer] = useState<string | null>(null);
+  const role = activeProfileRole();
 
   useFocusEffect(
     useCallback(() => {
+      let active = true;
       setDocuments(getDocuments());
+      import('../sync/engine')
+        .then(engine => engine.syncActiveProfile())
+        .then(() => { if (active) setDocuments(getDocuments()); })
+        .catch(e => console.warn('Sincronização', e));
+      return () => { active = false; };
     }, [])
   );
 
   const handleDelete = () => {
     if (!docToDelete) return;
     try {
-      const file = new File(docToDelete.imageUri);
-      if (file.exists) file.delete();
+      if (docToDelete.imageUri) {
+        const file = new File(docToDelete.imageUri);
+        if (file.exists) file.delete();
+      }
     } catch {}
     deleteDocumentById(docToDelete.id);
+    scheduleActiveSync();
     cancelDueDateReminders(docToDelete.id).catch(e => console.warn('Erro ao cancelar notificacao', e));
     setDocuments(getDocuments());
     setDocToDelete(null);
@@ -46,12 +61,17 @@ export default function BibliotecaScreen() {
 
   const handleTogglePaid = (doc: SavedDocument) => {
     togglePaidStatus(doc.id, doc.isPaid);
+    scheduleActiveSync();
     syncDueDateReminders({ ...doc, isPaid: doc.isPaid === 1 ? 0 : 1 })
       .catch(e => console.warn('Erro ao atualizar notificacao', e));
     setDocuments(getDocuments());
   };
 
   const handleExport = async (type: 'csv' | 'pdf') => {
+    if (documents.length === 0) {
+      Alert.alert('Biblioteca vazia', 'Escaneie ou importe uma conta antes de exportar.');
+      return;
+    }
     try {
       if (type === 'csv') {
         const result = await generateCSVFile(documents, getCurrentProfile());
@@ -72,6 +92,7 @@ export default function BibliotecaScreen() {
       }
     } catch (e) {
       console.warn('Erro ao exportar:', e);
+      Alert.alert('Erro ao exportar', e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -121,7 +142,13 @@ export default function BibliotecaScreen() {
       style={[styles.card, item.isPaid ? styles.cardPaid : null]}
       onPress={() => router.push({ pathname: '/detalhes', params: { id: item.id } })}
     >
-      <Image source={{ uri: item.imageUri }} style={styles.thumbnail} />
+      {item.imageUri ? (
+        <Image source={{ uri: item.imageUri }} style={styles.thumbnail} />
+      ) : (
+        <View style={[styles.thumbnail, styles.thumbnailEmpty]}>
+          <MaterialCommunityIcons name="file-document-outline" size={28} color={theme.colors.textSecondary} />
+        </View>
+      )}
       <View style={styles.cardContent}>
         <Text style={styles.cardTitle}>{item.documentType}</Text>
         <Text style={styles.cardSubtitle}>
@@ -132,26 +159,30 @@ export default function BibliotecaScreen() {
         </Text>
 
         <View style={styles.actionsRow}>
-          <Pressable onPress={() => handleTogglePaid(item)} style={styles.actionButton}>
-            <MaterialCommunityIcons name={item.isPaid ? "close-circle-outline" : "check-circle-outline"} size={20} color={Theme.colors.primary} />
-            <Text style={styles.toggleText}>{item.isPaid ? 'Desmarcar' : 'Pagar'}</Text>
-          </Pressable>
-          <Pressable onPress={() => setDocToDelete(item)} style={styles.actionButton}>
-            <MaterialCommunityIcons name="delete-outline" size={20} color={Theme.colors.danger} />
-            <Text style={styles.deleteText}>Excluir</Text>
-          </Pressable>
+          {canPay(role) && (
+            <Pressable onPress={() => handleTogglePaid(item)} style={styles.actionButton}>
+              <MaterialCommunityIcons name={item.isPaid ? "close-circle-outline" : "check-circle-outline"} size={20} color={theme.colors.primary} />
+              <Text style={styles.toggleText}>{item.isPaid ? 'Desmarcar' : 'Pagar'}</Text>
+            </Pressable>
+          )}
+          {canEdit(role) && (
+            <Pressable onPress={() => setDocToDelete(item)} style={styles.actionButton}>
+              <MaterialCommunityIcons name="delete-outline" size={20} color={theme.colors.danger} />
+              <Text style={styles.deleteText}>Excluir</Text>
+            </Pressable>
+          )}
         </View>
       </View>
     </Pressable>
   );
 
   return (
-    <LinearGradient colors={[Theme.colors.background, Theme.colors.backgroundGradient]} style={styles.container}>
+    <LinearGradient colors={[theme.colors.background, theme.colors.backgroundGradient]} style={styles.container}>
       <ScannerBackground />
       <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom', 'left', 'right']}>
         <View style={styles.header}>
           <Pressable onPress={() => selectedIssuer ? setSelectedIssuer(null) : router.back()} style={styles.backButton}>
-            <MaterialCommunityIcons name="arrow-left" size={28} color={Theme.colors.primary} />
+            <MaterialCommunityIcons name="arrow-left" size={28} color={theme.colors.primary} />
           </Pressable>
           <Text style={styles.headerTitle}>{selectedIssuer ? selectedIssuer : 'BIBLIOTECA'}</Text>
           <View style={{ width: 28 }} />
@@ -161,7 +192,7 @@ export default function BibliotecaScreen() {
           <TextInput
             style={styles.searchInput}
             placeholder="Buscar..."
-            placeholderTextColor={Theme.colors.textSecondary}
+            placeholderTextColor={theme.colors.textSecondary}
             value={search}
             onChangeText={setSearch}
           />
@@ -205,7 +236,7 @@ export default function BibliotecaScreen() {
                   {item.pending > 0 && (
                     <View style={styles.badgePending}><Text style={styles.badgeText}>{item.pending} pendentes</Text></View>
                   )}
-                  <MaterialCommunityIcons name="chevron-right" size={24} color={Theme.colors.primary} />
+                  <MaterialCommunityIcons name="chevron-right" size={24} color={theme.colors.primary} />
                 </View>
               </Pressable>
             )}
@@ -245,7 +276,7 @@ export default function BibliotecaScreen() {
                     <Text style={styles.csvCardText}>Ref: {cols[3]} | Venc: {cols[4]}</Text>
                     <Text style={styles.csvCardValue}>R$ {cols[5]}</Text>
                     {cols[7] === 'Sim' && cols[8] && (
-                      <Text style={{ color: Theme.colors.success, fontSize: 12, marginTop: 4 }}>
+                      <Text style={{ color: theme.colors.success, fontSize: 12, marginTop: 4 }}>
                         Pago em: {cols[8]}
                       </Text>
                     )}
@@ -282,56 +313,57 @@ export default function BibliotecaScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(theme => ({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
   backButton: { padding: 4 },
-  headerTitle: { fontSize: 20, fontFamily: Theme.fonts.bold, color: Theme.colors.primary, letterSpacing: 1 },
+  headerTitle: { fontSize: 20, fontFamily: theme.fonts.bold, color: theme.colors.primary, letterSpacing: 1 },
   topBar: { padding: 16, paddingBottom: 8, marginTop: 8 },
-  searchInput: { backgroundColor: Theme.colors.panel, borderRadius: 12, padding: 12, color: Theme.colors.text, fontFamily: Theme.fonts.regular, borderWidth: 1, borderColor: Theme.colors.border },
+  searchInput: { backgroundColor: theme.colors.panel, borderRadius: 12, padding: 12, color: theme.colors.text, fontFamily: theme.fonts.regular, borderWidth: 1, borderColor: theme.colors.border },
   exportRow: { flexDirection: 'row', gap: 12, marginTop: 12 },
-  exportButton: { flex: 1, backgroundColor: Theme.colors.panel, paddingVertical: 10, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: Theme.colors.primary },
-  exportText: { color: Theme.colors.primary, fontFamily: Theme.fonts.bold },
+  exportButton: { flex: 1, backgroundColor: theme.colors.panel, paddingVertical: 10, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: theme.colors.primary },
+  exportText: { color: theme.colors.primary, fontFamily: theme.fonts.bold },
   filterRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 10, marginBottom: 16 },
-  filterButton: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, backgroundColor: Theme.colors.panel, borderWidth: 1, borderColor: Theme.colors.border },
-  filterButtonActive: { backgroundColor: Theme.colors.primary, borderColor: Theme.colors.primary },
-  filterText: { color: Theme.colors.textSecondary, fontFamily: Theme.fonts.medium },
-  filterTextActive: { color: Theme.colors.background },
+  filterButton: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, backgroundColor: theme.colors.panel, borderWidth: 1, borderColor: theme.colors.border },
+  filterButtonActive: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+  filterText: { color: theme.colors.textSecondary, fontFamily: theme.fonts.medium },
+  filterTextActive: { color: theme.colors.background },
   list: { padding: 16, paddingTop: 0 },
 
-  issuerCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Theme.colors.panel, padding: 16, borderRadius: 12, marginBottom: 12, borderWidth: 1, borderColor: Theme.colors.border },
+  issuerCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: theme.colors.panel, padding: 16, borderRadius: 12, marginBottom: 12, borderWidth: 1, borderColor: theme.colors.border },
   issuerCardLeft: { flex: 1 },
-  issuerCardTitle: { fontSize: 18, fontFamily: Theme.fonts.bold, color: Theme.colors.primary },
-  issuerCardSubtitle: { fontSize: 13, color: Theme.colors.textSecondary, marginTop: 4 },
+  issuerCardTitle: { fontSize: 18, fontFamily: theme.fonts.bold, color: theme.colors.primary },
+  issuerCardSubtitle: { fontSize: 13, color: theme.colors.textSecondary, marginTop: 4 },
   issuerCardRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  badgePending: { backgroundColor: 'rgba(255, 152, 0, 0.2)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  badgeText: { color: Theme.colors.warning, fontSize: 12, fontFamily: Theme.fonts.medium },
+  badgePending: { backgroundColor: theme.colors.warningSoft, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  badgeText: { color: theme.colors.warning, fontSize: 12, fontFamily: theme.fonts.medium },
   sectionHeader: { paddingVertical: 8 },
-  sectionTitle: { color: Theme.colors.primary, fontSize: 18, fontFamily: Theme.fonts.bold, letterSpacing: 1 },
-  emptyText: { textAlign: 'center', marginTop: 40, color: Theme.colors.textSecondary, fontFamily: Theme.fonts.regular },
-  card: { flexDirection: 'row', backgroundColor: Theme.colors.panel, borderRadius: 12, marginBottom: 12, overflow: 'hidden', borderWidth: 1, borderColor: Theme.colors.border },
+  sectionTitle: { color: theme.colors.primary, fontSize: 18, fontFamily: theme.fonts.bold, letterSpacing: 1 },
+  emptyText: { textAlign: 'center', marginTop: 40, color: theme.colors.textSecondary, fontFamily: theme.fonts.regular },
+  card: { flexDirection: 'row', backgroundColor: theme.colors.panel, borderRadius: 12, marginBottom: 12, overflow: 'hidden', borderWidth: 1, borderColor: theme.colors.border },
   cardPaid: { opacity: 0.6 },
   thumbnail: { width: 80, height: 110, backgroundColor: '#000' },
+  thumbnailEmpty: { alignItems: 'center', justifyContent: 'center' },
   cardContent: { flex: 1, padding: 12, justifyContent: 'center' },
-  cardTitle: { fontSize: 16, fontFamily: Theme.fonts.bold, color: Theme.colors.text },
-  cardSubtitle: { fontSize: 13, color: Theme.colors.textSecondary, marginTop: 4, fontFamily: Theme.fonts.regular },
-  cardValue: { fontSize: 16, color: Theme.colors.success, fontFamily: Theme.fonts.bold, marginTop: 4 },
+  cardTitle: { fontSize: 16, fontFamily: theme.fonts.bold, color: theme.colors.text },
+  cardSubtitle: { fontSize: 13, color: theme.colors.textSecondary, marginTop: 4, fontFamily: theme.fonts.regular },
+  cardValue: { fontSize: 16, color: theme.colors.success, fontFamily: theme.fonts.bold, marginTop: 4 },
   actionsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
   actionButton: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 4 },
-  toggleText: { color: Theme.colors.primary, fontSize: 13, fontFamily: Theme.fonts.medium },
-  deleteText: { color: Theme.colors.danger, fontSize: 13, fontFamily: Theme.fonts.medium },
-  csvModalContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', padding: 20 },
-  csvModalContent: { backgroundColor: Theme.colors.panel, borderRadius: 12, padding: 16, maxHeight: '80%' },
-  csvModalTitle: { color: Theme.colors.primary, fontSize: 18, fontFamily: Theme.fonts.bold, marginBottom: 12, textAlign: 'center' },
-  csvScroll: { backgroundColor: Theme.colors.background, borderRadius: 8, padding: 12, marginBottom: 16 },
-  csvCard: { backgroundColor: Theme.colors.panel, padding: 12, borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: Theme.colors.border },
-  csvCardTitle: { color: Theme.colors.primary, fontFamily: Theme.fonts.bold, fontSize: 14 },
-  csvCardText: { color: Theme.colors.textSecondary, fontSize: 12, marginTop: 4 },
-  csvCardValue: { color: Theme.colors.success, fontFamily: Theme.fonts.bold, fontSize: 14, marginTop: 4 },
+  toggleText: { color: theme.colors.primary, fontSize: 13, fontFamily: theme.fonts.medium },
+  deleteText: { color: theme.colors.danger, fontSize: 13, fontFamily: theme.fonts.medium },
+  csvModalContainer: { flex: 1, backgroundColor: theme.colors.overlay, justifyContent: 'center', padding: 20 },
+  csvModalContent: { backgroundColor: theme.colors.panel, borderRadius: 12, padding: 16, maxHeight: '80%' },
+  csvModalTitle: { color: theme.colors.primary, fontSize: 18, fontFamily: theme.fonts.bold, marginBottom: 12, textAlign: 'center' },
+  csvScroll: { backgroundColor: theme.colors.background, borderRadius: 8, padding: 12, marginBottom: 16 },
+  csvCard: { backgroundColor: theme.colors.panel, padding: 12, borderRadius: 8, marginBottom: 8, borderWidth: 1, borderColor: theme.colors.border },
+  csvCardTitle: { color: theme.colors.primary, fontFamily: theme.fonts.bold, fontSize: 14 },
+  csvCardText: { color: theme.colors.textSecondary, fontSize: 12, marginTop: 4 },
+  csvCardValue: { color: theme.colors.success, fontFamily: theme.fonts.bold, fontSize: 14, marginTop: 4 },
   csvModalActions: { flexDirection: 'row', gap: 12 },
-  csvCancelButton: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: Theme.colors.border },
-  csvCancelText: { color: Theme.colors.textSecondary, fontFamily: Theme.fonts.bold },
-  csvShareButton: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', backgroundColor: Theme.colors.primary },
-  csvShareText: { color: Theme.colors.background, fontFamily: Theme.fonts.bold },
+  csvCancelButton: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: theme.colors.border },
+  csvCancelText: { color: theme.colors.textSecondary, fontFamily: theme.fonts.bold },
+  csvShareButton: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', backgroundColor: theme.colors.primary },
+  csvShareText: { color: theme.colors.background, fontFamily: theme.fonts.bold },
 
-});
+}));
