@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Text, Pressable, StyleSheet, View } from 'react-native';
+import { Text, Pressable, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as DocumentScanner from 'expo-document-scanner';
 import * as ImagePicker from 'expo-image-picker';
@@ -9,9 +10,11 @@ import { useDocument } from '../context/DocumentContext';
 import { saveImageLocally } from '../utils/files';
 import { ScannerBackground } from '../components/ScannerBackground';
 import { CustomToast } from '../components/CustomToast';
-import { Theme } from '../constants/theme';
+import { makeStyles, useTheme } from '../theme';
 
 export default function CapturaScreen() {
+  const theme = useTheme();
+  const styles = useStyles();
   const { setImageUri } = useDocument();
   const [isProcessing, setIsProcessing] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: 'error' | 'info' } | null>(null);
@@ -71,24 +74,25 @@ export default function CapturaScreen() {
   };
 
   return (
-    <LinearGradient colors={[Theme.colors.background, Theme.colors.backgroundGradient]} style={styles.container}>
+    <LinearGradient colors={[theme.colors.background, theme.colors.backgroundGradient]} style={styles.container}>
       <ScannerBackground />
       
       {toast && <CustomToast message={toast.msg} type={toast.type} onHide={() => setToast(null)} />}
 
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom', 'left', 'right']}>
       <View style={styles.content}>
         <Text style={styles.title}>CAPTURAR DOCUMENTO</Text>
         <Text style={styles.subtitle}>Escolha o metodo de digitalizacao</Text>
 
         <Pressable style={styles.button} onPress={onScan} disabled={isProcessing}>
-          <LinearGradient colors={[Theme.colors.primary, Theme.colors.success]} style={styles.buttonGradient}>
-            <MaterialCommunityIcons name="camera" size={24} color={Theme.colors.background} />
+          <LinearGradient colors={[theme.colors.primary, theme.colors.success]} style={styles.buttonGradient}>
+            <MaterialCommunityIcons name="camera" size={24} color={theme.colors.background} />
             <Text style={styles.buttonText}>{isProcessing ? 'PROCESSANDO...' : 'USAR CAMERA'}</Text>
           </LinearGradient>
         </Pressable>
 
         <Pressable style={styles.buttonSecondary} onPress={onGallery} disabled={isProcessing}>
-          <MaterialCommunityIcons name="image-multiple" size={24} color={Theme.colors.primary} />
+          <MaterialCommunityIcons name="image-multiple" size={24} color={theme.colors.primary} />
           <Text style={styles.buttonTextSecondary}>IMPORTAR DA GALERIA</Text>
         </Pressable>
 
@@ -96,20 +100,21 @@ export default function CapturaScreen() {
           <Text style={styles.linkText}>Cancelar</Text>
         </Pressable>
       </View>
+      </SafeAreaView>
     </LinearGradient>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(theme => ({
   container: { flex: 1 },
   content: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  title: { fontSize: 24, fontFamily: Theme.fonts.bold, color: Theme.colors.primary, marginBottom: 8, letterSpacing: 1 },
-  subtitle: { fontSize: 14, fontFamily: Theme.fonts.regular, color: Theme.colors.textSecondary, marginBottom: 48 },
+  title: { fontSize: 24, fontFamily: theme.fonts.bold, color: theme.colors.primary, marginBottom: 8, letterSpacing: 1 },
+  subtitle: { fontSize: 14, fontFamily: theme.fonts.regular, color: theme.colors.textSecondary, marginBottom: 48 },
   button: { width: '100%', maxWidth: 320, borderRadius: 12, marginBottom: 16, overflow: 'hidden' },
   buttonGradient: { paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  buttonText: { color: Theme.colors.background, fontSize: 16, fontFamily: Theme.fonts.bold },
-  buttonSecondary: { width: '100%', maxWidth: 320, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: Theme.colors.primary, gap: 8, backgroundColor: Theme.colors.panel },
-  buttonTextSecondary: { color: Theme.colors.primary, fontSize: 16, fontFamily: Theme.fonts.bold },
+  buttonText: { color: theme.colors.background, fontSize: 16, fontFamily: theme.fonts.bold },
+  buttonSecondary: { width: '100%', maxWidth: 320, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: theme.colors.primary, gap: 8, backgroundColor: theme.colors.panel },
+  buttonTextSecondary: { color: theme.colors.primary, fontSize: 16, fontFamily: theme.fonts.bold },
   link: { marginTop: 24 },
-  linkText: { color: Theme.colors.textSecondary, fontFamily: Theme.fonts.regular, fontSize: 14 },
-});
+  linkText: { color: theme.colors.textSecondary, fontFamily: theme.fonts.regular, fontSize: 14 },
+}));
