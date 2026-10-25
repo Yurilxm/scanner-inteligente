@@ -2,6 +2,8 @@ import * as SQLite from 'expo-sqlite';
 import { ExtractedFields } from '../types/document';
 import { todayISO } from '../utils/format';
 import { getActiveProfileId, setActiveProfileId } from './profiles';
+import type { SyncCommit, SyncDocument, SyncLearned, SyncSnapshot } from '../sync/model';
+import { EMPTY_CURSOR } from '../sync/model';
 
 type Db = SQLite.SQLiteDatabase;
 
@@ -407,3 +409,137 @@ export function deleteDocumentInProfile(profileId: string, id: string): void {
     target.runSync('UPDATE documents SET deletedAt = ?, updatedAt = ?, ocrText = NULL, contentDirty = 1 WHERE id = ?', now, now, id);
   });
 }
+
+// ---- Snapshot e commit de sincronizacao ----
+type SyncDocRow = Omit<SyncDocument, 'contentDirty' | 'paymentDirty'> & { contentDirty: number; paymentDirty: number };
+type SyncLearnedRow = Omit<SyncLearned, 'dirty'> & { dirty: number };
+
+// Estado usado por uma rodada de sincronização do perfil
+export function loadSyncSnapshot(profileId: string): SyncSnapshot {
+  return withProfileDb(profileId, target => {
+    const docs = target.getAllSync<SyncDocRow>(
+      `SELECT id, imageUri, documentType, issuer, referenceMonth, cnpj, cpf, totalAmountCents, dueDate, boletoLine, ocrText,
+              isPaid, paymentDate, createdAt, updatedAt, paymentUpdatedAt, deletedAt, contentDirty, paymentDirty
+       FROM documents`
+    ) ?? [];
+    const learned = target.getAllSync<SyncLearnedRow>(
+      'SELECT id, pattern, category, updatedAt, deletedAt, dirty FROM learned_categories'
+    ) ?? [];
+    const meta = target.getAllSync<{ key: string; value: string }>('SELECT key, value FROM sync_meta') ?? [];
+    const photoDue: Record<string, string> = {};
+    const photoHave: Record<string, string> = {};
+    let cursor = EMPTY_CURSOR;
+    for (const row of meta) {
+      if (row.key === 'cursor') cursor = row.value;
+      else if (row.key.startsWith('photoDue:')) photoDue[row.key.slice('photoDue:'.length)] = row.value;
+      else if (row.key.startsWith('photoHave:')) photoHave[row.key.slice('photoHave:'.length)] = row.value;
+    }
+    return {
+      cursor,
+      photoDue,
+      photoHave,
+      documents: docs.map(d => ({
+        ...d,
+        imageUri: d.imageUri || '',
+        updatedAt: d.updatedAt || d.createdAt,
+        paymentUpdatedAt: d.paymentUpdatedAt || d.createdAt,
+        contentDirty: d.contentDirty === 1,
+        paymentDirty: d.paymentDirty === 1,
+      })),
+      learned: learned.map(d => ({ ...d, updatedAt: d.updatedAt || '', dirty: d.dirty === 1 })),
+    };
+  });
+}
+
+// Grava o resultado de uma rodada. Conteúdo não mexe no pagamento, e o contrário também.
+export function commitSync(profileId: string, commit: SyncCommit): void {
+  withProfileDb(profileId, target => {
+    const run = (sql: string, ...args: (string | number | null)[]) => {
+      target.runSync(sql, ...args);
+    };
+    try {
+      target.execSync('BEGIN');
+      for (const doc of commit.contents) {
+        run(
+          `INSERT INTO documents (id, imageUri, documentType, issuer, referenceMonth, cnpj, cpf, totalAmountCents, dueDate, boletoLine, ocrText, isPaid, paymentDate, createdAt, updatedAt, paymentUpdatedAt, deletedAt, contentDirty, paymentDirty)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?, ?, 0, 0)
+           ON CONFLICT(id) DO UPDATE SET
+             imageUri = COALESCE(?, documents.imageUri),
+             documentType = excluded.documentType,
+             issuer = excluded.issuer,
+             referenceMonth = excluded.referenceMonth,
+             cnpj = excluded.cnpj,
+             cpf = excluded.cpf,
+             totalAmountCents = excluded.totalAmountCents,
+             dueDate = excluded.dueDate,
+             boletoLine = excluded.boletoLine,
+             ocrText = excluded.ocrText,
+             createdAt = excluded.createdAt,
+             updatedAt = excluded.updatedAt,
+             deletedAt = excluded.deletedAt,
+             contentDirty = 0`,
+          doc.id, doc.imageUri ?? '', doc.documentType, doc.issuer, doc.referenceMonth, doc.cnpj, doc.cpf,
+          doc.totalAmountCents, doc.dueDate, doc.boletoLine, doc.ocrText, doc.createdAt, doc.updatedAt, doc.updatedAt, doc.deletedAt,
+          doc.imageUri,
+        );
+      }
+      for (const pay of commit.payments) {
+        const exists = target.getFirstSync<{ id: string }>('SELECT id FROM documents WHERE id = ?', pay.id);
+        if (!exists) {
+          run(
+            `INSERT INTO documents (id, imageUri, documentType, issuer, referenceMonth, cnpj, cpf, totalAmountCents, dueDate, boletoLine, ocrText, isPaid, paymentDate, createdAt, updatedAt, paymentUpdatedAt, contentDirty, paymentDirty)
+             VALUES (?, '', 'DESCONHECIDO', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, ?, ?, ?, ?, ?, 0, 0)`,
+            pay.id, pay.isPaid, pay.paymentDate, pay.paymentUpdatedAt, pay.paymentUpdatedAt, pay.paymentUpdatedAt,
+          );
+        } else {
+          run(
+            'UPDATE documents SET isPaid = ?, paymentDate = ?, paymentUpdatedAt = ?, paymentDirty = 0 WHERE id = ?',
+            pay.isPaid, pay.paymentDate, pay.paymentUpdatedAt, pay.id,
+          );
+        }
+      }
+      for (const item of commit.learned) {
+        run('DELETE FROM learned_categories WHERE pattern = ? AND id <> ?', item.pattern, item.id);
+        run(
+          `INSERT INTO learned_categories (id, pattern, category, createdAt, updatedAt, deletedAt, dirty)
+           VALUES (?, ?, ?, ?, ?, ?, 0)
+           ON CONFLICT(id) DO UPDATE SET pattern = excluded.pattern, category = excluded.category, updatedAt = excluded.updatedAt, deletedAt = excluded.deletedAt, dirty = 0`,
+          item.id, item.pattern, item.category, item.updatedAt, item.updatedAt, item.deletedAt,
+        );
+      }
+      for (const image of commit.images) {
+        run('UPDATE documents SET imageUri = ? WHERE id = ?', image.imageUri, image.id);
+      }
+      for (const id of commit.clearContent) run('UPDATE documents SET contentDirty = 0 WHERE id = ?', id);
+      for (const id of commit.clearPayment) run('UPDATE documents SET paymentDirty = 0 WHERE id = ?', id);
+      for (const id of commit.clearLearned) run('UPDATE learned_categories SET dirty = 0 WHERE id = ?', id);
+      if (commit.cursor) run('INSERT OR REPLACE INTO sync_meta (key, value) VALUES (?, ?)', 'cursor', commit.cursor);
+      for (const [key, value] of Object.entries(commit.meta)) {
+        if (value === null) run('DELETE FROM sync_meta WHERE key = ?', key);
+        else run('INSERT OR REPLACE INTO sync_meta (key, value) VALUES (?, ?)', key, value);
+      }
+      target.execSync('COMMIT');
+    } catch (e) {
+      try { target.execSync('ROLLBACK'); } catch {}
+      throw e;
+    }
+  });
+}
+
+// Perfil desligado da nuvem (saiu ou foi removido de uma gaveta): esquece o que já foi enviado,
+// para que, se voltar a sincronizar num cofre novo, tudo suba de novo
+export function resetSyncState(profileId: string): void {
+  withProfileDb(profileId, target => {
+    target.execSync('BEGIN');
+    try {
+      target.runSync('DELETE FROM sync_meta');
+      target.runSync('UPDATE documents SET contentDirty = 1, paymentDirty = 1');
+      target.runSync('UPDATE learned_categories SET dirty = 1');
+      target.execSync('COMMIT');
+    } catch (e) {
+      try { target.execSync('ROLLBACK'); } catch {}
+      throw e;
+    }
+  });
+}
+
