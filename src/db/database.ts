@@ -296,9 +296,6 @@ export function saveCachedCNPJ(cnpj: string, razao_social: string, cnae_fiscal: 
 }
 
 
-// ============================================================
-// Fase 3: funcoes de perfil (sync/Fase 4 omitidas)
-// ============================================================
 // Executa fn no banco de um perfil qualquer, abrindo e fechando se não for o ativo
 function withProfileDb<T>(profileId: string, fn: (target: Db) => T): T {
   if (profileId === currentProfile) return fn(db);
@@ -410,7 +407,6 @@ export function deleteDocumentInProfile(profileId: string, id: string): void {
   });
 }
 
-// ---- Snapshot e commit de sincronizacao ----
 type SyncDocRow = Omit<SyncDocument, 'contentDirty' | 'paymentDirty'> & { contentDirty: number; paymentDirty: number };
 type SyncLearnedRow = Omit<SyncLearned, 'dirty'> & { dirty: number };
 
