@@ -143,7 +143,7 @@ export const THEMES: Record<ThemeName, AppTheme> = {
 };
 
 export const THEME_ORDER: ThemeName[] = ['escuro', 'legacy', 'claro'];
-export const DEFAULT_THEME: ThemeName = 'escuro';
+export const DEFAULT_THEME: ThemeName = 'legacy';
 
 export function isThemeName(value: string): value is ThemeName {
   return value in THEMES;

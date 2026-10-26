@@ -41,11 +41,7 @@ export const PROFILE_ICONS = [
 
 export const MAX_PROFILE_NAME = 20;
 
-// Perfis que existiam antes do registro: mesmos ids, para continuar usando scanner_yuri.db e scanner_mae.db
-const LEGACY_PROFILES = [
-  { id: 'yuri', name: 'Yuri', color: PROFILE_COLORS[0], icon: 'initial' },
-  { id: 'mae', name: 'Mãe', color: PROFILE_COLORS[5], icon: 'initial' },
-];
+
 
 let registry: SQLite.SQLiteDatabase | null = null;
 
@@ -92,14 +88,8 @@ function reg(): SQLite.SQLiteDatabase {
   migrateRegistry(registry);
   const count = registry.getFirstSync<{ n: number }>('SELECT COUNT(*) AS n FROM profiles');
   if (!count || count.n === 0) {
-    const now = new Date().toISOString();
-    LEGACY_PROFILES.forEach((p, i) => {
-      registry!.runSync(
-        'INSERT OR IGNORE INTO profiles (id, name, color, icon, sortOrder, createdAt) VALUES (?, ?, ?, ?, ?, ?)',
-        p.id, p.name, p.color, p.icon, i, now,
-      );
-    });
-  }
+      // Banco zerado: aguardando o Onboarding
+    }
   return registry;
 }
 
@@ -164,9 +154,9 @@ export function getActiveProfileId(): string {
   try {
     const row = reg().getFirstSync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'active_profile'");
     if (row && getProfile(row.value)) return row.value;
-    return listProfiles()[0]?.id ?? LEGACY_PROFILES[0].id;
+    return listProfiles()[0]?.id ?? '';
   } catch {
-    return LEGACY_PROFILES[0].id;
+    return '';
   }
 }
 

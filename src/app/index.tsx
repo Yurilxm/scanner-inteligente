@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { useCallback, useState, useEffect } from 'react';
+import { View, Text, Pressable, AppState } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -10,22 +10,52 @@ import { PinPad } from '../components/PinPad';
 import { makeStyles, useTheme } from '../theme';
 import { APP_NAME } from '../constants';
 import { getCurrentProfile } from '../db/database';
-import { Profile, canEdit, getProfile } from '../db/profiles';
+import { Profile, canEdit, getProfile, listProfiles } from '../db/profiles';
 import { ROLE_LABELS } from '../sync/roles';
-import { getPerfil, needsAppPin, tryUnlockApp } from '../utils/perfil';
+import { getPerfil, needsAppPin, tryUnlockApp, appSetting } from '../utils/perfil';
 import { AccountBadge } from '../components/AccountBadge';
 import { loadAccount } from '../sync/loadAccount';
 import type { LocalAccountStatus } from '../sync/account';
 import { accountBadgeState } from '../sync/badge';
+import * as LocalAuthentication from 'expo-local-authentication';
 import { scheduleAllSync } from '../sync/schedule';
 import { countReviewEntries } from '../sync/review';
 
 export default function HomeScreen() {
+  // PORTA DE ENTRADA: Se não existe nenhuma gaveta, joga pro Onboarding
+  useEffect(() => {
+    if (listProfiles().length === 0) {
+      router.replace('/onboarding');
+    }
+  }, []);
+
   const theme = useTheme();
   const styles = useStyles();
   const [profile, setProfile] = useState<Profile | null>(() => getProfile(getCurrentProfile()));
   // PIN do app: pedido uma vez por abertura, nÃ£o ao trocar de gaveta
   const [locked, setLocked] = useState(needsAppPin);
+  
+  // Bloqueia o app se ele for para segundo plano (igual app de banco)
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        setLocked(true);
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
+  // Tenta biometria automaticamente se estiver configurado
+  useEffect(() => {
+    if (locked && appSetting('use_biometrics') === 'true') {
+      LocalAuthentication.authenticateAsync({
+        promptMessage: 'Desbloqueie o Control',
+        fallbackLabel: 'Usar PIN',
+      }).then(res => {
+        if (res.success) setLocked(false);
+      });
+    }
+  }, [locked]);
   const [account, setAccount] = useState<LocalAccountStatus | null>(null);
   const [inviteCount, setInviteCount] = useState(0);
 
@@ -69,6 +99,12 @@ export default function HomeScreen() {
             subtitle="Digite o PIN para abrir o Control"
             color={perfil.color}
             onVerify={pin => {
+              if (appSetting('use_biometrics') === 'true') {
+                 // Se a pessoa clicou em "Usar PIN" na biometria, valida o PIN mestre salvo
+                 const error = tryUnlockApp(pin);
+                 if (!error) setLocked(false);
+                 return error;
+              }
               const error = tryUnlockApp(pin);
               if (!error) setLocked(false);
               return error;

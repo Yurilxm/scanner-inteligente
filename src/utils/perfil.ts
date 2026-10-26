@@ -15,6 +15,7 @@ export const APP_SETTING_DEFAULTS = {
   notifications_enabled: 'true',
   notification_days_before: '5',
   notification_frequency: 'once',
+  use_biometrics: 'false',
   cnpj_lookup_enabled: 'false',
 };
 export type AppSettingKey = keyof typeof APP_SETTING_DEFAULTS;
