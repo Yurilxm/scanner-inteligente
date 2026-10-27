@@ -27,13 +27,13 @@ export function escapeHTML(value: string | null | undefined): string {
 // Perfil vai na ultima coluna: o preview do app le as colunas por posicao
 export function generateCSV(documents: SavedDocument[], profile = ''): string {
   const BOM = '\uFEFF';
-  const header = 'ID;Tipo;Emissor;Referencia;Vencimento;Valor (R$);CNPJ;Pago;Data Pagamento;Linha Digitavel;Perfil\n';
+  const header = 'ID;Tipo;Emissor;Referencia;Vencimento;Valor (R$);CNPJ;Pago;Data Pagamento;Linha Digitavel;Observacao;Perfil\n';
   const rows = documents.map(doc => {
     const valor = centsToDecimal(doc.totalAmountCents);
     const data = isoToBR(doc.dueDate);
     const pDate = isoToBR(doc.paymentDate);
 
-    return `${escapeCSV(doc.id)};${escapeCSV(doc.documentType)};${escapeCSV(doc.issuer)};${escapeCSV(doc.referenceMonth)};${escapeCSV(data)};${escapeCSV(valor)};${escapeCSV(doc.cnpj)};${doc.isPaid ? 'Sim' : 'Nao'};${escapeCSV(pDate)};${escapeCSV(doc.boletoLine)};${escapeCSV(profile)}`;
+    return `${escapeCSV(doc.id)};${escapeCSV(doc.documentType)};${escapeCSV(doc.issuer)};${escapeCSV(doc.referenceMonth)};${escapeCSV(data)};${escapeCSV(valor)};${escapeCSV(doc.cnpj)};${doc.isPaid ? 'Sim' : 'Nao'};${escapeCSV(pDate)};${escapeCSV(doc.boletoLine)};${escapeCSV(doc.observacao)};${escapeCSV(profile)}`;
   });
   return BOM + header + rows.join('\n');
 }
@@ -71,6 +71,7 @@ export async function generatePDFFile(documents: SavedDocument[]) {
             <th style="border: 1px solid #ddd; padding: 8px;">Valor</th>
             <th style="border: 1px solid #ddd; padding: 8px;">Status</th>
             <th style="border: 1px solid #ddd; padding: 8px;">Pagamento</th>
+            <th style="border: 1px solid #ddd; padding: 8px;">Observação</th>
           </tr>
           ${documents.map(doc => {
             const valor = formatBRL(doc.totalAmountCents) || '-';
@@ -85,6 +86,7 @@ export async function generatePDFFile(documents: SavedDocument[]) {
                 <td style="border: 1px solid #ddd; padding: 8px;">${valor}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">${doc.isPaid ? 'PAGO' : 'PENDENTE'}</td>
                 <td style="border: 1px solid #ddd; padding: 8px;">${escapeHTML(pDate)}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${escapeHTML(doc.observacao) || '-'}</td>
               </tr>
             `;
           }).join('')}

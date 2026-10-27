@@ -183,6 +183,9 @@ export default function DetalhesScreen() {
             <Text style={styles.label}>Vencimento</Text>
             <Text style={styles.value}>{isoToBR(doc.dueDate) || '-'}</Text>
 
+            <Text style={styles.label}>Observação</Text>
+            <Text style={styles.value}>{doc.observacao || '-'}</Text>
+
             <Text style={styles.label}>Valor Total</Text>
             <Text style={styles.value}>{formatBRL(doc.totalAmountCents) || '-'}</Text>
 

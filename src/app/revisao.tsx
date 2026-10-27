@@ -34,6 +34,7 @@ export default function RevisaoScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isImageVisible, setIsImageVisible] = useState(false);
   const [isSuccessVisible, setIsSuccessVisible] = useState(false);
+  const [isSuccessModalVisible, setIsSuccessModalVisible] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   // Estado local para edicao
@@ -44,6 +45,7 @@ export default function RevisaoScreen() {
   const [editDate, setEditDate] = useState('');
   const [editValue, setEditValue] = useState('');
   const [editPaymentDate, setEditPaymentDate] = useState('');
+  const [editObservacao, setEditObservacao] = useState('');
   const [reclassifyVisible, setReclassifyVisible] = useState(false);
 
   useEffect(() => {
@@ -154,7 +156,7 @@ export default function RevisaoScreen() {
       if (editId) {
         updateDocument(editId, imageUri!, ocrText || '', fields);
         savedId = editId;
-        Alert.alert('Sucesso', 'Documento atualizado com sucesso.');
+        setIsSuccessModalVisible(true);
       } else {
         savedId = saveDocument(imageUri!, ocrText || '', fields);
       }
@@ -249,7 +251,7 @@ export default function RevisaoScreen() {
             </View>
             <TextInput style={styles.input} value={editIssuer} onChangeText={setEditIssuer} placeholder="Nao encontrado" />
 
-            <Text style={styles.label}>Referencia (Ex: 10/2026)</Text>
+            <Text style={styles.label}>Observação (Ex: 10/2026)</Text>
             <TextInput style={styles.input} value={editReference} onChangeText={setEditReference} placeholder="Nao encontrado" />
 
             <Text style={styles.label}>CNPJ</Text>
@@ -313,6 +315,12 @@ export default function RevisaoScreen() {
           setIsSuccessVisible(false);
           router.replace('/biblioteca');
         }}
+      />
+      <CustomModal
+        visible={isSuccessModalVisible}
+        title="Sucesso"
+        message={editId ? 'Documento atualizado com sucesso.' : 'Documento salvo com sucesso.'}
+        onConfirm={() => { setIsSuccessModalVisible(false); if (!editId) reset(); router.back(); }}
       />
     </LinearGradient>
   );

@@ -72,6 +72,12 @@ function runMigrations(target: Db) {
   // v2: base da sincronização. Conteúdo e pagamento têm datas e marcas de envio separadas,
   // para "fulano pagou" e "ciclano corrigiu o valor" não sobrescreverem um ao outro.
   // Exclusão vira marca (deletedAt), para avisar os outros aparelhos.
+  if (version < 3) {
+    runInTransaction(target, `
+      ALTER TABLE documents ADD COLUMN observacao TEXT;
+      PRAGMA user_version = 3;
+    `);
+  }
   if (version < 2) {
     runInTransaction(target, `
       ALTER TABLE documents ADD COLUMN updatedAt TEXT;
@@ -151,7 +157,7 @@ function initSchema(target: Db) {
   // Migração segura de colunas antigas
   const columns: [string, string][] = [
     ['issuer', 'TEXT'], ['referenceMonth', 'TEXT'], ['dueDate', 'TEXT'], ['isPaid', 'INTEGER DEFAULT 0'],
-    ['paymentDate', 'TEXT'], ['cnpj', 'TEXT'], ['cpf', 'TEXT'], ['totalAmountCents', 'INTEGER'], ['boletoLine', 'TEXT'],
+    ['paymentDate', 'TEXT'], ['cnpj', 'TEXT'], ['cpf', 'TEXT'], ['totalAmountCents', 'INTEGER'], ['boletoLine', 'TEXT'], ['observacao', 'TEXT'],
   ];
   for (const [col, type] of columns) {
     try { target.execSync(`ALTER TABLE documents ADD COLUMN ${col} ${type};`); } catch {}
@@ -165,6 +171,7 @@ export function initDatabase() {
 }
 
 export type SavedDocument = ExtractedFields & {
+  observacao?: string | null;
   id: string;
   imageUri: string;
   ocrText: string;
@@ -178,10 +185,11 @@ export type SavedDocument = ExtractedFields & {
   paymentDirty?: number;
 };
 
-export function saveDocument(imageUri: string, ocrText: string, fields: ExtractedFields, paymentDate?: string | null): string {
+export function saveDocument(imageUri: string, ocrText: string, fields: ExtractedFields, paymentDate?: string | null, observacao?: string | null): string {
   const id = generateId();
   const createdAt = new Date().toISOString();
   const isPaid = paymentDate ? 1 : 0;
+    const obs = observacao || null;
   db.runSync(
     `INSERT INTO documents (id, imageUri, documentType, issuer, referenceMonth, cnpj, cpf, totalAmountCents, dueDate, boletoLine, ocrText, isPaid, paymentDate, createdAt, updatedAt, paymentUpdatedAt, contentDirty, paymentDirty)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1)`,
@@ -541,15 +549,17 @@ export function resetSyncState(profileId: string): void {
 
 
 // Atualiza um documento existente (usado na edição)
-export function updateDocument(id: string, imageUri: string, ocrText: string, fields: ExtractedFields): void {
+export function updateDocument(id: string, imageUri: string, ocrText: string, fields: ExtractedFields, paymentDate?: string | null, observacao?: string | null): void {
   const now = new Date().toISOString();
+  const isPaid = paymentDate ? 1 : 0;
   db.runSync(
     `UPDATE documents SET 
       imageUri = ?, documentType = ?, issuer = ?, referenceMonth = ?, cnpj = ?, cpf = ?, 
-      totalAmountCents = ?, dueDate = ?, boletoLine = ?, ocrText = ?, updatedAt = ?, contentDirty = 1
+      totalAmountCents = ?, dueDate = ?, boletoLine = ?, ocrText = ?, observacao = ?, 
+      isPaid = ?, paymentDate = ?, paymentUpdatedAt = ?, updatedAt = ?, contentDirty = 1, paymentDirty = 1
      WHERE id = ?`,
     imageUri, fields.documentType || null, fields.issuer || null, fields.referenceMonth || null,
     fields.cnpj || null, fields.cpf || null, fields.totalAmountCents || null, fields.dueDate || null,
-    fields.boletoLine || null, ocrText || null, now, id
+    fields.boletoLine || null, ocrText || null, observacao || null, isPaid, paymentDate || null, now, now, id
   );
 }
