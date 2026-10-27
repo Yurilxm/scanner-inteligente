@@ -1,11 +1,35 @@
 import React from 'react';
 import { render, screen, act } from '@testing-library/react-native';
-import HomeScreen from '../src/app/index';
+import RootLayout from '../src/app/_layout';
 import * as PerfilUtils from '../src/utils/perfil';
 import * as LocalAuth from 'expo-local-authentication';
 
-jest.mock('expo-router', () => ({ useFocusEffect: jest.fn(), router: { push: jest.fn(), replace: jest.fn() } }));
+jest.mock('expo-router', () => {
+  const Stack = () => null;
+  Stack.Screen = () => null;
+  return {
+    Stack,
+    useFocusEffect: jest.fn(),
+    router: { push: jest.fn(), replace: jest.fn() },
+  };
+});
+
+jest.mock('expo-splash-screen', () => ({ preventAutoHideAsync: jest.fn(), hideAsync: jest.fn() }));
+
+jest.mock('@expo-google-fonts/outfit', () => ({
+  useFonts: () => [true],
+  Outfit_400Regular: {},
+  Outfit_500Medium: {},
+  Outfit_700Bold: {},
+}));
+
+jest.mock('@expo-google-fonts/jetbrains-mono', () => ({
+  JetBrainsMono_400Regular: {},
+}));
+
+jest.mock('expo-system-ui', () => ({ setBackgroundColorAsync: jest.fn() }));
 jest.mock('../src/sync/loadAccount', () => ({ loadAccount: jest.fn().mockResolvedValue({ getLocalAccountStatus: jest.fn().mockResolvedValue({ kind: 'signed-out' }) }) }));
+jest.mock('../src/db/database', () => ({ initDatabase: jest.fn() }));
 
 jest.mock('expo-local-authentication', () => ({
   authenticateAsync: jest.fn(),
@@ -16,6 +40,11 @@ jest.mock('../src/utils/perfil', () => ({
   needsAppPin: jest.fn(),
   appSetting: jest.fn(),
   tryUnlockApp: jest.fn(),
+  migrateToSinglePerfil: jest.fn(),
+}));
+
+jest.mock('../src/utils/profileManager', () => ({
+  applyProfileTheme: jest.fn(),
 }));
 
 jest.mock('../src/components/PinPad', () => {
@@ -26,17 +55,20 @@ jest.mock('../src/components/PinPad', () => {
   };
 });
 
-describe('Tela de Bloqueio (Lock Screen)', () => {
+jest.mock('../src/components/AnimatedSplash', () => ({
+  AnimatedSplash: () => null
+}));
+
+describe('Tela de Bloqueio Global (RootLayout)', () => {
   beforeEach(() => { jest.clearAllMocks(); });
 
   it('mostra apenas Biometria (com botão tentar novamente) se só bio estiver ativa', async () => {
     (PerfilUtils.needsAppPin as jest.Mock).mockReturnValue(true);
     (PerfilUtils.appSetting as jest.Mock).mockReturnValue('true');
     (PerfilUtils.getPerfil as jest.Mock).mockReturnValue({ name: 'Yuri', hasPin: false });
-    // Faz a biometria ficar "pendente" para o teste conseguir ver o estado bloqueado
     (LocalAuth.authenticateAsync as jest.Mock).mockReturnValue(new Promise(() => {}));
 
-    await act(async () => { await render(<HomeScreen />); });
+    await act(async () => { await render(<RootLayout />); });
 
     expect(screen.getByText('App Bloqueado')).toBeTruthy();
     expect(screen.getByText('TENTAR NOVAMENTE')).toBeTruthy();
@@ -48,7 +80,7 @@ describe('Tela de Bloqueio (Lock Screen)', () => {
     (PerfilUtils.appSetting as jest.Mock).mockReturnValue('false');
     (PerfilUtils.getPerfil as jest.Mock).mockReturnValue({ name: 'Yuri', hasPin: true });
 
-    await act(async () => { await render(<HomeScreen />); });
+    await act(async () => { await render(<RootLayout />); });
 
     expect(screen.queryByText('App Bloqueado')).toBeNull();
     expect(screen.getByTestId('pinpad')).toBeTruthy();
@@ -60,7 +92,7 @@ describe('Tela de Bloqueio (Lock Screen)', () => {
     (PerfilUtils.getPerfil as jest.Mock).mockReturnValue({ name: 'Yuri', hasPin: true });
     (LocalAuth.authenticateAsync as jest.Mock).mockReturnValue(new Promise(() => {}));
 
-    await act(async () => { await render(<HomeScreen />); });
+    await act(async () => { await render(<RootLayout />); });
 
     expect(screen.getByTestId('pinpad')).toBeTruthy();
     expect(LocalAuth.authenticateAsync).toHaveBeenCalled();

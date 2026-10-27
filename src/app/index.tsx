@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect } from 'react';
-import { View, Text, Pressable, AppState } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -12,7 +12,7 @@ import { APP_NAME } from '../constants';
 import { getCurrentProfile } from '../db/database';
 import { Profile, canEdit, getProfile, listProfiles } from '../db/profiles';
 import { ROLE_LABELS } from '../sync/roles';
-import { getPerfil, needsAppPin, tryUnlockApp, appSetting } from '../utils/perfil';
+import { getPerfil, appSetting } from '../utils/perfil';
 import { AccountBadge } from '../components/AccountBadge';
 import { loadAccount } from '../sync/loadAccount';
 import type { LocalAccountStatus } from '../sync/account';
@@ -33,29 +33,11 @@ export default function HomeScreen() {
   const styles = useStyles();
   const [profile, setProfile] = useState<Profile | null>(() => getProfile(getCurrentProfile()));
   // PIN do app: pedido uma vez por abertura, nÃ£o ao trocar de gaveta
-  const [locked, setLocked] = useState(needsAppPin);
   
-  // Bloqueia o app se ele for para segundo plano (igual app de banco)
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (nextAppState) => {
-      if (nextAppState === 'background' || nextAppState === 'inactive') {
-        setLocked(true);
-      }
-    });
-    return () => sub.remove();
-  }, []);
+  
+  
 
-  // Tenta biometria automaticamente se estiver configurado
-  useEffect(() => {
-    if (locked && appSetting('use_biometrics') === 'true') {
-      LocalAuthentication.authenticateAsync({
-        promptMessage: 'Desbloqueie o Control',
-        fallbackLabel: 'Usar PIN',
-      }).then(res => {
-        if (res.success) setLocked(false);
-      });
-    }
-  }, [locked]);
+  
   const [account, setAccount] = useState<LocalAccountStatus | null>(null);
   const [inviteCount, setInviteCount] = useState(0);
 
@@ -85,52 +67,7 @@ export default function HomeScreen() {
 
   const badge = accountBadgeState(account);
 
-  if (locked) {
-    const perfil = getPerfil();
-    const useBio = appSetting('use_biometrics') === 'true';
-    const hasPin = perfil.hasPin;
-
-    return (
-      <LinearGradient colors={[theme.colors.background, theme.colors.backgroundGradient]} style={styles.container}>
-        <ScannerBackground />
-        <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom', 'left', 'right']}>
-        <View style={styles.lockContent}>
-          <ProfileAvatar name={perfil.name} color={perfil.color} icon={perfil.icon} photoUri={perfil.photoUri} size={88} />
-          
-          {hasPin ? (
-            <PinPad
-              mode="enter"
-              title={perfil.name}
-              subtitle="Digite o PIN para abrir o Control"
-              color={perfil.color}
-              onVerify={pin => {
-                const error = tryUnlockApp(pin);
-                if (!error) setLocked(false);
-                return error;
-              }}
-            />
-          ) : (
-            <View style={{ alignItems: 'center', marginTop: 24 }}>
-              <Text style={{ fontFamily: theme.fonts.bold, fontSize: 20, color: theme.colors.text, marginBottom: 8 }}>App Bloqueado</Text>
-              {useBio && (
-                <Pressable 
-                  style={{ backgroundColor: theme.colors.primary, padding: 16, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}
-                  onPress={() => {
-                    require('expo-local-authentication').authenticateAsync({ promptMessage: 'Desbloqueie o Control' })
-                      .then((res: any) => { if (res.success) setLocked(false); });
-                  }}
-                >
-                  <MaterialCommunityIcons name="fingerprint" size={24} color={theme.colors.background} />
-                  <Text style={{ fontFamily: theme.fonts.bold, color: theme.colors.background }}>TENTAR NOVAMENTE</Text>
-                </Pressable>
-              )}
-            </View>
-          )}
-        </View>
-        </SafeAreaView>
-      </LinearGradient>
-    );
-  }
+  
 
   return (
     <LinearGradient colors={[theme.colors.background, theme.colors.backgroundGradient]} style={styles.container}>

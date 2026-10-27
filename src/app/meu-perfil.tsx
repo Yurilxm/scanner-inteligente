@@ -23,7 +23,7 @@ export default function MeuPerfilScreen() {
   const [color, setColor] = useState(perfil.color);
   const [icon, setIcon] = useState(perfil.icon);
   const [photoUri, setPhotoUri] = useState(perfil.photoUri);
-  const [modal, setModal] = useState<'pin' | 'remove_pin' | 'remove_bio' | 'success' | null>(null);
+  const [modal, setModal] = useState<'pin' | 'remove_pin' | 'remove_bio' | 'success' | 'success_bio' | null>(null);
   const [useBio, setUseBio] = useState(appSetting('use_biometrics') === 'true');
   const [showExitModal, setShowExitModal] = useState(false);
 
@@ -230,6 +230,13 @@ export default function MeuPerfilScreen() {
         visible={modal === 'success'}
         title="Sucesso"
         message="O PIN foi configurado com sucesso."
+        onConfirm={() => setModal(null)}
+      />
+
+      <CustomModal
+        visible={modal === 'success_bio'}
+        title="Sucesso"
+        message="A biometria foi ativada com sucesso."
         onConfirm={() => setModal(null)}
       />
 
