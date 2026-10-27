@@ -67,49 +67,73 @@ function reminderTitle(profileId: string): string {
 }
 
 // profileId: a gaveta da conta (padrão: a aberta; ao mover uma conta, a gaveta de destino)
-export async function scheduleDueDateReminder(docId: string, issuer: string, dueDate: string, profileId = getCurrentProfile()) {
-  if (!dueDate) return;
-  if (appSetting('notifications_enabled') !== 'true') return;
+export async function scheduleDueDateReminder(
+  docId: string,
+  issuer: string,
+  dueDate: string,
+  profileId = getCurrentProfile(),
+): Promise<boolean> {
+  if (!dueDate) return false;
+  if (appSetting('notifications_enabled') !== 'true') return false;
+
   const [year, month, day] = dueDate.split('-').map(Number);
   const due = new Date(year, month - 1, day);
-  
+  due.setHours(23, 59, 59, 999);
+
+  if (due.getTime() <= Date.now()) return false;
+
   const daysBefore = parseInt(appSetting('notification_days_before'), 10) || 5;
   const frequency = appSetting('notification_frequency');
-  
+  const dueStr = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+
+  const scheduled: Date[] = [];
+
   if (frequency === 'once') {
     const reminderDate = new Date(due);
     reminderDate.setDate(reminderDate.getDate() - daysBefore);
     reminderDate.setHours(9, 0, 0, 0);
-    
-    if (reminderDate.getTime() <= Date.now()) return;
-
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: reminderTitle(profileId),
-        body: `A conta ${issuer} vence em ${daysBefore} dias (${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}).`,
-        data: { docId, profile: profileId },
-      },
-      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: reminderDate },
-    });
+    if (reminderDate.getTime() > Date.now()) scheduled.push(reminderDate);
   } else {
-    // Daily: agenda uma notificação para cada dia dos últimos N dias
     for (let i = daysBefore; i >= 1; i--) {
       const reminderDate = new Date(due);
       reminderDate.setDate(reminderDate.getDate() - i);
       reminderDate.setHours(9, 0, 0, 0);
-      
-      if (reminderDate.getTime() <= Date.now()) continue;
-
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: reminderTitle(profileId),
-          body: `Faltam ${i} dias para o vencimento da conta ${issuer} (${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}).`,
-          data: { docId, profile: profileId },
-        },
-        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: reminderDate },
-      });
+      if (reminderDate.getTime() > Date.now()) scheduled.push(reminderDate);
     }
   }
+
+  // Catch-up: janela de "X dias antes" ja passou mas vencimento futuro.
+  // Agenda pelo menos 1 aviso: hoje as 9h (se ainda nao passou) ou amanha as 9h.
+  if (scheduled.length === 0) {
+    const catchup = new Date();
+    catchup.setHours(9, 0, 0, 0);
+    if (catchup.getTime() <= Date.now()) catchup.setDate(catchup.getDate() + 1);
+    if (catchup.getTime() < due.getTime()) scheduled.push(catchup);
+  }
+
+  if (scheduled.length === 0) return false;
+
+  for (const when of scheduled) {
+    const dueDay = new Date(year, month - 1, day).getTime();
+    const whenDay = new Date(when.getFullYear(), when.getMonth(), when.getDate()).getTime();
+    const daysLeft = Math.max(0, Math.round((dueDay - whenDay) / (24 * 60 * 60 * 1000)));
+    const body = daysLeft === 0
+      ? `A conta ${issuer} vence hoje (${dueStr}).`
+      : daysLeft === 1
+      ? `A conta ${issuer} vence amanha (${dueStr}).`
+      : `Faltam ${daysLeft} dias para o vencimento da conta ${issuer} (${dueStr}).`;
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: reminderTitle(profileId),
+        body,
+        data: { docId, profile: profileId },
+      },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: when },
+    });
+  }
+
+  return true;
 }
 
 // ---- Ferramentas de desenvolvimento (usadas só em __DEV__ nas Configurações) ----

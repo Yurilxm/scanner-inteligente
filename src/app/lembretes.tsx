@@ -8,9 +8,9 @@ import { ScannerBackground } from '../components/ScannerBackground';
 import { InviteInbox } from '../components/InviteInbox';
 import { GavetaPending } from '../components/GavetaPending';
 import { makeStyles, useTheme } from '../theme';
-import { getCurrentProfile, getDocumentById } from '../db/database';
+import { getCurrentProfile, getDocumentById, listPendingDocuments, PendingDocument } from '../db/database';
 import { appSetting } from '../utils/perfil';
-import { listScheduledReminders } from '../utils/notifications';
+import { listScheduledReminders, scheduleDueDateReminder } from '../utils/notifications';
 import { ReminderItem, remindersForProfile } from '../utils/reminders';
 import { daysUntil, formatBRL, isoToBR, monthShort, relativeDays, timeHHMM } from '../utils/format';
 
@@ -33,25 +33,37 @@ export default function LembretesScreen() {
   const styles = useStyles();
   const [items, setItems] = useState<ReminderItem[] | null>(null);
   const [hidden, setHidden] = useState(0);
+  const [missing, setMissing] = useState<PendingDocument[]>([]);
 
   const enabled = appSetting('notifications_enabled') === 'true';
   const daysBefore = parseInt(appSetting('notification_days_before'), 10) || 5;
   const daily = appSetting('notification_frequency') === 'daily';
 
+  const load = useCallback(async () => {
+    const reminders = await listScheduledReminders();
+    const result = remindersForProfile(reminders, getCurrentProfile(), getDocumentById);
+    setItems(result.items);
+    setHidden(result.hiddenFromOtherProfiles);
+
+    // Contas pendentes com vencimento futuro mas SEM lembrete agendado
+    const scheduledIds = new Set(reminders.map(r => r.docId).filter((x): x is string => !!x));
+    const pending = listPendingDocuments(getCurrentProfile());
+    setMissing(pending.filter(d => d.dueDate && !scheduledIds.has(d.id)));
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       let active = true;
-      listScheduledReminders()
-        .then(reminders => {
-          if (!active) return;
-          const result = remindersForProfile(reminders, getCurrentProfile(), getDocumentById);
-          setItems(result.items);
-          setHidden(result.hiddenFromOtherProfiles);
-        })
-        .catch(() => active && setItems([]));
+      load().catch(() => active && setItems([]));
       return () => { active = false; };
-    }, [])
+    }, [load])
   );
+
+  const reagendar = useCallback(async (doc: PendingDocument) => {
+    if (!doc.dueDate) return;
+    await scheduleDueDateReminder(doc.id, doc.issuer || 'Conta', doc.dueDate);
+    await load();
+  }, [load]);
 
   const openDoc = (item: ReminderItem) => {
     if (item.doc) router.push({ pathname: '/detalhes', params: { id: item.doc.id } });
@@ -82,6 +94,33 @@ export default function LembretesScreen() {
           <Text style={styles.heroTitle}>{reminderTitle(next)}</Text>
           <Text style={styles.heroDetails}>{reminderDetails(next)}</Text>
         </Pressable>
+      )}
+
+      {missing.length > 0 && (
+        <View style={styles.missingSection}>
+          <Text style={styles.missingTitle}>SEM LEMBRETE AGENDADO</Text>
+          <Text style={styles.missingHint}>
+            Essas contas vencem em breve mas o aviso nao foi criado. Toque para agendar.
+          </Text>
+          {missing.map(doc => (
+            <Pressable
+              key={doc.id}
+              style={styles.missingCard}
+              onPress={() => reagendar(doc)}
+            >
+              <MaterialCommunityIcons name="bell-plus-outline" size={24} color={theme.colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.missingDocTitle} numberOfLines={1}>
+                  {doc.issuer || 'Conta sem emissor'}
+                </Text>
+                <Text style={styles.missingDocDetails} numberOfLines={1}>
+                  Vence {isoToBR(doc.dueDate)}{doc.totalAmountCents ? ` · ${formatBRL(doc.totalAmountCents)}` : ''}
+                </Text>
+              </View>
+              <Text style={styles.missingAction}>Agendar</Text>
+            </Pressable>
+          ))}
+        </View>
       )}
 
       <Pressable style={styles.configRow} onPress={() => router.push('/configuracoes')}>
@@ -171,6 +210,14 @@ const useStyles = makeStyles(theme => ({
   heroRelative: { color: theme.colors.primary, fontFamily: theme.fonts.medium, fontSize: 15, marginTop: 2 },
   heroTitle: { color: theme.colors.text, fontFamily: theme.fonts.bold, fontSize: 18, marginTop: 14 },
   heroDetails: { color: theme.colors.textSecondary, fontFamily: theme.fonts.regular, fontSize: 14, marginTop: 2 },
+
+  missingSection: { marginBottom: 16 },
+  missingTitle: { color: theme.colors.warning, fontFamily: theme.fonts.bold, fontSize: 12, letterSpacing: 2, marginBottom: 4 },
+  missingHint: { color: theme.colors.textSecondary, fontFamily: theme.fonts.regular, fontSize: 12, marginBottom: 8 },
+  missingCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: theme.colors.warning, backgroundColor: theme.colors.warningSoft, marginBottom: 8 },
+  missingDocTitle: { color: theme.colors.text, fontFamily: theme.fonts.bold, fontSize: 15 },
+  missingDocDetails: { color: theme.colors.textSecondary, fontFamily: theme.fonts.regular, fontSize: 12, marginTop: 2 },
+  missingAction: { color: theme.colors.primary, fontFamily: theme.fonts.bold, fontSize: 13 },
 
   configRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 4, marginBottom: 8 },
   configText: { flex: 1, color: theme.colors.textSecondary, fontFamily: theme.fonts.regular, fontSize: 13 },
