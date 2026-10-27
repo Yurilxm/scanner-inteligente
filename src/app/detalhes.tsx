@@ -65,6 +65,8 @@ export default function DetalhesScreen() {
 
   if (!doc) return null;
 
+  const isPix = doc.documentType === 'PIX';
+
   const handleSendDiagnostics = async () => {
     try {
       await sendDiagnostics(doc);
@@ -193,11 +195,19 @@ export default function DetalhesScreen() {
             <Text style={styles.label}>Emissor</Text>
             <Text style={styles.value}>{doc.issuer || '-'}</Text>
 
-            <Text style={styles.label}>Referencia</Text>
-            <Text style={styles.value}>{doc.referenceMonth || '-'}</Text>
+            {!isPix && (
+              <>
+                <Text style={styles.label}>Referencia</Text>
+                <Text style={styles.value}>{doc.referenceMonth || '-'}</Text>
+              </>
+            )}
 
-            <Text style={styles.label}>Vencimento</Text>
-            <Text style={styles.value}>{isoToBR(doc.dueDate) || '-'}</Text>
+            {!isPix && (
+              <>
+                <Text style={styles.label}>Vencimento</Text>
+                <Text style={styles.value}>{isoToBR(doc.dueDate) || '-'}</Text>
+              </>
+            )}
 
             <Text style={styles.label}>Observação</Text>
             <Text style={styles.value}>{doc.observacao || '-'}</Text>

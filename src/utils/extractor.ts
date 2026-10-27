@@ -327,17 +327,58 @@ function extractIssuerFromBeneficiary(text: string): string | null {
     // 1) Nome do RECEBEDOR - ancorado em 'Dados de quem recebeu'.
     //    Aceita 'Nome:', 'Nome ', 'Nome\n' (cleanText ja virou espaco).
     //    Fatia o bloco em 'Dados de quem (enviou|fez)' para nunca pegar o pagador.
-    const receiverMatch = text.match(/Dados de quem recebeu([\s\S]{0,800})/i);
+    // 1) Nome do RECEBEDOR - estrategia universal para PIX.
+    //    Funciona para Bradesco, Nubank, Itau, Inter, Santander, C6, etc.
+    //    (a) Localiza marcador de secao do recebedor.
+    //    (b) Corta na proxima "Dados de quem X" (secao do pagador).
+    //    (c) Corta no primeiro limite (CPF/CNPJ/Chave/Instituicao/Agencia).
+    //    (d) Extrai "Nome X" ou usa o texto cru, filtrando logo (lowercase)
+    //        e nome de banco conhecido.
+    const receiverMatch = text.match(
+      /(?:Dados de quem recebeu|Recebedor\b|Destinat[aá]rio|Recebeu de)([\s\S]{0,3000})/i
+    );
     let receiverBlock = receiverMatch ? receiverMatch[1] : '';
-    const senderIdx = receiverBlock.search(/Dados de quem (?:enviou|fez)/i);
-    if (senderIdx >= 0) receiverBlock = receiverBlock.slice(0, senderIdx);
+
+    // Corta na proxima secao "Dados de quem X" (pagador, enviador, etc.)
+    // Nao corta em "Dados de quem recebeu" (e o proprio marcador).
+    const nextSectionIdx = receiverBlock.search(/Dados de quem (?!recebeu)/i);
+    if (nextSectionIdx >= 0) receiverBlock = receiverBlock.slice(0, nextSectionIdx);
 
     if (receiverBlock) {
-      const nameMatch = receiverBlock.match(
-        /\bNome\s*:?\s*(\S.{1,60}?)(?=\s*(?:CPF|CNPJ|Chave\s*Pix|Institui|Ag[.\s]|Conta\b|Valor|R\$|$))/i
+      // Delimita a area do nome: tudo entre o marcador e o primeiro campo
+      // Chave\s*Pix\b (e nao Chave\s*(?:Pix)?) para nao casar
+      // a palavra 'Chaves' de nomes de estabelecimento (ex: 'Chaves Burguers').
+      const limitIdx = receiverBlock.search(
+        /CPF\s*\/?\s*CNPJ|\bCPF\b|\bCNPJ\b|Chave\s*Pix\b|Institui|Ag[eê]ncia|Ag\./i
       );
-      if (nameMatch) {
-        r.issuer = nameMatch[1].trim().replace(/\s+/g, ' ');
+
+      let nameArea: string;
+      if (limitIdx > 0) {
+        nameArea = receiverBlock.slice(0, limitIdx).trim();
+      } else if (limitIdx === -1) {
+        nameArea = receiverBlock.slice(0, 200).trim();
+      } else {
+        // limitIdx === 0: CPF no inicio, sem nome no bloco
+        nameArea = '';
+      }
+
+      if (nameArea) {
+        // Tentativa 1: "Nome X" ou "Nome: X" (Nubank, Itau, Inter, mock)
+        const nomeMatch = nameArea.match(/\bNome\s*:?\s*(.+)$/i);
+        let candidate = nomeMatch ? nomeMatch[1].trim() : nameArea;
+
+        // Filtro universal: descarta logo (token em minusculas) e nome de banco
+        const BANKS = /^(bradesco|itau|ita[uú]|nubank|nu|santander|caixa|bb|banco|inter|c6|original|safra|btg|sicredi|sicoob|picpay|mercado|pago|mercado ?pago|pagseguro|stone|wise|nomad|avenue|next|neon|will|agibank|cloudwalk|infinitepay|pagbank)$/i;
+        const tokens = candidate.split(/\s+/).filter(Boolean);
+        let startIdx = 0;
+        while (startIdx < tokens.length - 1 && (/^[a-z]/.test(tokens[startIdx]) || BANKS.test(tokens[startIdx]))) {
+          startIdx++;
+        }
+        const finalName = tokens.slice(startIdx).join(' ').trim();
+
+        if (finalName.length >= 3 && finalName.length <= 80) {
+          r.issuer = finalName.replace(/\s+/g, ' ');
+        }
       }
 
       // 2) CPF/CNPJ do recebedor (so dentro do bloco do recebedor)
