@@ -22,7 +22,7 @@ import { scheduleAllSync } from '../sync/schedule';
 import { countReviewEntries } from '../sync/review';
 
 export default function HomeScreen() {
-  // PORTA DE ENTRADA: Se n�o existe nenhuma gaveta, joga pro Onboarding
+  // PORTA DE ENTRADA: Se não existe nenhuma gaveta, joga pro Onboarding
   useEffect(() => {
     if (listProfiles().length === 0) {
       router.replace('/onboarding');
@@ -32,7 +32,7 @@ export default function HomeScreen() {
   const theme = useTheme();
   const styles = useStyles();
   const [profile, setProfile] = useState<Profile | null>(() => getProfile(getCurrentProfile()));
-  // PIN do app: pedido uma vez por abertura, não ao trocar de gaveta
+  // PIN do app: pedido uma vez por abertura, nÃ£o ao trocar de gaveta
   const [locked, setLocked] = useState(needsAppPin);
   
   // Bloqueia o app se ele for para segundo plano (igual app de banco)
@@ -63,7 +63,7 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       setProfile(getProfile(getCurrentProfile()));
-      // Só dados locais (sessão e frase guardadas): a tela inicial não espera a rede
+      // SÃ³ dados locais (sessÃ£o e frase guardadas): a tela inicial nÃ£o espera a rede
       let active = true;
       loadAccount()
         .then(acc => acc.getLocalAccountStatus())
@@ -87,29 +87,45 @@ export default function HomeScreen() {
 
   if (locked) {
     const perfil = getPerfil();
+    const useBio = appSetting('use_biometrics') === 'true';
+    const hasPin = perfil.hasPin;
+
     return (
       <LinearGradient colors={[theme.colors.background, theme.colors.backgroundGradient]} style={styles.container}>
         <ScannerBackground />
         <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom', 'left', 'right']}>
         <View style={styles.lockContent}>
           <ProfileAvatar name={perfil.name} color={perfil.color} icon={perfil.icon} photoUri={perfil.photoUri} size={88} />
-          <PinPad
-            mode="enter"
-            title={perfil.name}
-            subtitle="Digite o PIN para abrir o Control"
-            color={perfil.color}
-            onVerify={pin => {
-              if (appSetting('use_biometrics') === 'true') {
-                 // Se a pessoa clicou em "Usar PIN" na biometria, valida o PIN mestre salvo
-                 const error = tryUnlockApp(pin);
-                 if (!error) setLocked(false);
-                 return error;
-              }
-              const error = tryUnlockApp(pin);
-              if (!error) setLocked(false);
-              return error;
-            }}
-          />
+          
+          {hasPin ? (
+            <PinPad
+              mode="enter"
+              title={perfil.name}
+              subtitle="Digite o PIN para abrir o Control"
+              color={perfil.color}
+              onVerify={pin => {
+                const error = tryUnlockApp(pin);
+                if (!error) setLocked(false);
+                return error;
+              }}
+            />
+          ) : (
+            <View style={{ alignItems: 'center', marginTop: 24 }}>
+              <Text style={{ fontFamily: theme.fonts.bold, fontSize: 20, color: theme.colors.text, marginBottom: 8 }}>App Bloqueado</Text>
+              {useBio && (
+                <Pressable 
+                  style={{ backgroundColor: theme.colors.primary, padding: 16, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                  onPress={() => {
+                    require('expo-local-authentication').authenticateAsync({ promptMessage: 'Desbloqueie o Control' })
+                      .then((res: any) => { if (res.success) setLocked(false); });
+                  }}
+                >
+                  <MaterialCommunityIcons name="fingerprint" size={24} color={theme.colors.background} />
+                  <Text style={{ fontFamily: theme.fonts.bold, color: theme.colors.background }}>TENTAR NOVAMENTE</Text>
+                </Pressable>
+              )}
+            </View>
+          )}
         </View>
         </SafeAreaView>
       </LinearGradient>
@@ -140,7 +156,7 @@ export default function HomeScreen() {
         <Pressable
           style={styles.topButton}
           onPress={() => router.push('/lembretes')}
-          accessibilityLabel={inviteCount > 0 ? `Próximos lembretes e ${inviteCount} convite${inviteCount > 1 ? 's' : ''}` : 'Próximos lembretes'}
+          accessibilityLabel={inviteCount > 0 ? `PrÃ³ximos lembretes e ${inviteCount} convite${inviteCount > 1 ? 's' : ''}` : 'PrÃ³ximos lembretes'}
         >
           <MaterialCommunityIcons name={inviteCount > 0 ? 'bell-badge-outline' : 'bell-outline'} size={28} color={theme.colors.primary} />
           {inviteCount > 0 && (
@@ -149,7 +165,7 @@ export default function HomeScreen() {
             </View>
           )}
         </Pressable>
-        <Pressable style={styles.topButton} onPress={() => router.push('/configuracoes')} accessibilityLabel="Configurações">
+        <Pressable style={styles.topButton} onPress={() => router.push('/configuracoes')} accessibilityLabel="ConfiguraÃ§Ãµes">
           <MaterialCommunityIcons name="cog" size={28} color={theme.colors.primary} />
         </Pressable>
         </View>
@@ -164,10 +180,10 @@ export default function HomeScreen() {
           <Pressable
             style={styles.sharedChip}
             onPress={() => router.push({ pathname: '/gaveta', params: { id: profile.id } })}
-            accessibilityLabel={`Gaveta compartilhada. Você é ${ROLE_LABELS[profile.role]}`}
+            accessibilityLabel={`Gaveta compartilhada. VocÃª Ã© ${ROLE_LABELS[profile.role]}`}
           >
             <MaterialCommunityIcons name="account-group-outline" size={18} color={theme.colors.primary} />
-            <Text style={styles.sharedText}>Gaveta compartilhada · {ROLE_LABELS[profile.role]}</Text>
+            <Text style={styles.sharedText}>Gaveta compartilhada Â· {ROLE_LABELS[profile.role]}</Text>
           </Pressable>
         )}
 

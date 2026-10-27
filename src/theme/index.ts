@@ -8,7 +8,7 @@ export type AppTheme = {
   label: string;
   dark: boolean;
   statusBar: 'light' | 'dark';
-  // Fundo animado: 'neon' = grade + linha de varredura; 'subtle' = só a grade, bem leve
+  // Fundo animado: 'neon' = grade + linha de varredura; 'subtle' = sÃ³ a grade, bem leve
   scanner: 'neon' | 'subtle';
   colors: {
     background: string;
@@ -18,14 +18,14 @@ export type AppTheme = {
     text: string;
     textSecondary: string;
     primary: string;
-    onPrimary: string;      // texto/ícone sobre fundo primary
-    onAccent: string;       // texto/ícone sobre as cores (vivas) dos perfis
-    primarySoft: string;    // fundo de destaque leve (item selecionado, cartão em foco)
+    onPrimary: string;      // texto/Ã­cone sobre fundo primary
+    onAccent: string;       // texto/Ã­cone sobre as cores (vivas) dos perfis
+    primarySoft: string;    // fundo de destaque leve (item selecionado, cartÃ£o em foco)
     success: string;
     danger: string;
     warning: string;
     warningSoft: string;
-    overlay: string;        // fundo escurecido atrás de modais
+    overlay: string;        // fundo escurecido atrÃ¡s de modais
     grid: string;           // linhas do fundo
     trackOff: string;       // trilho do Switch desligado
     thumb: string;
@@ -48,7 +48,7 @@ const fonts = {
 };
 
 export const THEMES: Record<ThemeName, AppTheme> = {
-  // Escuro em preto e branco: só tons de cinza; vermelho discreto apenas para ações destrutivas
+  // Escuro em preto e branco: sÃ³ tons de cinza; vermelho discreto apenas para aÃ§Ãµes destrutivas
   escuro: {
     name: 'escuro',
     label: 'Escuro',
@@ -142,14 +142,14 @@ export const THEMES: Record<ThemeName, AppTheme> = {
   },
 };
 
-export const THEME_ORDER: ThemeName[] = ['escuro', 'legacy', 'claro'];
+export const THEME_ORDER: ThemeName[] = ['legacy', 'escuro', 'claro'];
 export const DEFAULT_THEME: ThemeName = 'legacy';
 
 export function isThemeName(value: string): value is ThemeName {
   return value in THEMES;
 }
 
-// Estado global simples: o tema vem das configurações do perfil ativo
+// Estado global simples: o tema vem das configuraÃ§Ãµes do perfil ativo
 let current: ThemeName = DEFAULT_THEME;
 const listeners = new Set<() => void>();
 
@@ -174,7 +174,7 @@ export function useTheme(): AppTheme {
 }
 
 // Estilos que dependem do tema: criados uma vez por tema e reaproveitados.
-// Mesma assinatura do StyleSheet.create (o "& Styles" mantém 'row', 'center' etc. como literais).
+// Mesma assinatura do StyleSheet.create (o "& Styles" mantÃ©m 'row', 'center' etc. como literais).
 type Styles = Parameters<typeof StyleSheet.create>[0];
 
 export function makeStyles<S extends Styles>(factory: (theme: AppTheme) => S & Styles): () => Readonly<S> {

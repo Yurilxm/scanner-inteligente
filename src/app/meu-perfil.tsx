@@ -1,61 +1,67 @@
 import { useState } from 'react';
-import { View, Text, Pressable, ScrollView, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, Pressable, ScrollView, TextInput, KeyboardAvoidingView, Platform, Alert, Image } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as LocalAuthentication from 'expo-local-authentication';
+
 import { ScannerBackground } from '../components/ScannerBackground';
 import { ProfileAvatar } from '../components/ProfileAvatar';
 import { PinModal } from '../components/PinPad';
 import { CustomModal } from '../components/CustomModal';
 import { makeStyles, useTheme } from '../theme';
 import { MAX_PROFILE_NAME, PROFILE_COLORS, PROFILE_ICONS } from '../db/profiles';
-import { getPerfil, removePerfilPhoto, savePerfilPhoto, setAppPin, updatePerfil } from '../utils/perfil';
+import { getPerfil, removePerfilPhoto, savePerfilPhoto, setAppPin, updatePerfil, appSetting, setAppSettingValue } from '../utils/perfil';
 
-type PhotoChange = { kind: 'keep' } | { kind: 'set'; uri: string } | { kind: 'remove' };
-type PinChange = { kind: 'keep' } | { kind: 'set'; pin: string } | { kind: 'remove' };
-
-// O perfil da pessoa: um só no app, com as gavetas dentro. PIN vale para abrir o app.
 export default function MeuPerfilScreen() {
   const theme = useTheme();
   const styles = useStyles();
-  const [initial] = useState(getPerfil);
-  const [name, setName] = useState(initial.name);
-  const [color, setColor] = useState(initial.color);
-  const [icon, setIcon] = useState(initial.icon);
-  const [photo, setPhoto] = useState<PhotoChange>({ kind: 'keep' });
-  const [pin, setPin] = useState<PinChange>({ kind: 'keep' });
-  const [creatingPin, setCreatingPin] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState<{ title: string; message: string } | null>(null);
+  const [perfil, setPerfil] = useState(getPerfil());
+  const [name, setName] = useState(perfil.name);
+  const [color, setColor] = useState(perfil.color);
+  const [icon, setIcon] = useState(perfil.icon);
+  const [photoUri, setPhotoUri] = useState(perfil.photoUri);
+  const [modal, setModal] = useState<'pin' | 'remove_pin' | 'success' | null>(null);
+  const [useBio, setUseBio] = useState(appSetting('use_biometrics') === 'true');
 
-  const photoUri = photo.kind === 'set' ? photo.uri : photo.kind === 'remove' ? null : initial.photoUri;
-  const hasPin = pin.kind === 'set' || (pin.kind === 'keep' && initial.hasPin);
-
-  const pickPhoto = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      setNotice({ title: 'Sem acesso à galeria', message: 'Permita o acesso às fotos para escolher a imagem do perfil.' });
-      return;
+  const save = () => {
+    updatePerfil({ name, color, icon });
+    if (photoUri !== perfil.photoUri) {
+      if (photoUri) savePerfilPhoto(photoUri).catch(console.warn);
+      else removePerfilPhoto().catch(console.warn);
     }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.8 });
-    if (!result.canceled && result.assets[0]?.uri) setPhoto({ kind: 'set', uri: result.assets[0].uri });
+    router.back();
   };
 
-  const save = async () => {
-    if (saving) return;
-    setSaving(true);
-    try {
-      updatePerfil({ name: name.trim().slice(0, MAX_PROFILE_NAME), color, icon });
-      if (photo.kind === 'set') await savePerfilPhoto(photo.uri);
-      if (photo.kind === 'remove') await removePerfilPhoto();
-      if (pin.kind === 'set') setAppPin(pin.pin);
-      if (pin.kind === 'remove') setAppPin(null);
-      router.back();
-    } catch (e) {
-      setNotice({ title: 'Não foi possível salvar', message: e instanceof Error ? e.message : String(e) });
-      setSaving(false);
+  const pickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, aspect: [1, 1], quality: 0.5 });
+    if (!result.canceled) setPhotoUri(result.assets[0].uri);
+  };
+
+  const handleSetPin = (pin: string) => {
+    setAppPin(pin);
+    setPerfil(getPerfil());
+    setModal('success');
+  };
+
+  const handleRemovePin = () => {
+    setAppPin(null);
+    setPerfil(getPerfil());
+    setModal(null);
+  };
+
+  const toggleBiometrics = async () => {
+    if (useBio) {
+      setAppSettingValue('use_biometrics', 'false');
+      setUseBio(false);
+    } else {
+      const auth = await LocalAuthentication.authenticateAsync({ promptMessage: 'Ative a biometria' });
+      if (auth.success) {
+        setAppSettingValue('use_biometrics', 'true');
+        setUseBio(true);
+      }
     }
   };
 
@@ -64,135 +70,147 @@ export default function MeuPerfilScreen() {
       <ScannerBackground />
       <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom', 'left', 'right']}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <Pressable style={styles.backButton} onPress={() => router.back()}>
             <MaterialCommunityIcons name="arrow-left" size={28} color={theme.colors.primary} />
           </Pressable>
-          <Text style={styles.headerTitle}>MEU PERFIL</Text>
-          <View style={{ width: 28 }} />
+          <Text style={styles.title}>MEU PERFIL</Text>
+          <View style={{ width: 44 }} />
         </View>
 
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-            <View style={styles.preview}>
-              <ProfileAvatar name={name || '?'} color={color} icon={icon} photoUri={photoUri} size={96} locked={hasPin} />
-              <Text style={styles.previewName}>{name.trim() || 'Eu'}</Text>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 60 }}>
+            
+            <View style={{ alignItems: 'center', marginBottom: 24 }}>
+              <ProfileAvatar name={name} color={color} icon={icon} photoUri={photoUri} size={100} />
             </View>
 
             <Text style={styles.label}>Nome</Text>
-            <TextInput
-              style={styles.input}
-              value={name}
-              onChangeText={setName}
-              placeholder="Seu nome"
-              placeholderTextColor={theme.colors.textSecondary}
-              maxLength={MAX_PROFILE_NAME}
-            />
+            <TextInput style={styles.input} value={name} onChangeText={setName} maxLength={MAX_PROFILE_NAME} placeholderTextColor={theme.colors.textSecondary} />
 
             <Text style={styles.label}>Cor</Text>
-            <View style={styles.wrapRow}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
               {PROFILE_COLORS.map(c => (
-                <Pressable
-                  key={c}
-                  onPress={() => setColor(c)}
-                  style={[styles.colorDot, { backgroundColor: c }, color === c && styles.colorDotActive]}
-                  accessibilityLabel={`Cor ${c}`}
-                >
-                  {color === c && <MaterialCommunityIcons name="check" size={20} color={theme.colors.onAccent} />}
-                </Pressable>
+                <Pressable key={c} onPress={() => setColor(c)} style={[styles.colorCircle, { backgroundColor: c, borderColor: color === c ? '#FFF' : 'transparent' }]} />
               ))}
             </View>
 
             <Text style={styles.label}>Avatar</Text>
-            <View style={styles.wrapRow}>
-              {PROFILE_ICONS.map(ic => (
-                <Pressable
-                  key={ic}
-                  onPress={() => { setIcon(ic); if (photoUri) setPhoto({ kind: 'remove' }); }}
-                  style={[styles.iconOption, icon === ic && !photoUri && { borderColor: color, backgroundColor: theme.colors.primarySoft }]}
-                >
-                  {ic === 'initial' ? (
-                    <Text style={[styles.iconInitial, { color }]}>{(name.trim()[0] ?? 'A').toUpperCase()}</Text>
-                  ) : (
-                    <MaterialCommunityIcons name={ic as keyof typeof MaterialCommunityIcons.glyphMap} size={26} color={color} />
-                  )}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
+              {PROFILE_ICONS.map(i => (
+                <Pressable key={i} onPress={() => setIcon(i)} style={[styles.iconBox, { borderColor: icon === i ? theme.colors.primary : 'transparent' }]}>
+                  <ProfileAvatar name={name} color={color} icon={i} photoUri={null} size={36} />
                 </Pressable>
               ))}
             </View>
-            <View style={styles.photoRow}>
-              <Pressable style={styles.secondaryButton} onPress={pickPhoto}>
-                <MaterialCommunityIcons name="image-outline" size={20} color={theme.colors.primary} />
-                <Text style={styles.secondaryText}>{photoUri ? 'Trocar foto' : 'Usar foto'}</Text>
-              </Pressable>
-              {photoUri && (
-                <Pressable style={styles.secondaryButton} onPress={() => setPhoto({ kind: 'remove' })}>
-                  <MaterialCommunityIcons name="delete-outline" size={20} color={theme.colors.textSecondary} />
-                  <Text style={[styles.secondaryText, { color: theme.colors.textSecondary }]}>Remover foto</Text>
-                </Pressable>
-              )}
-            </View>
 
-            <Text style={styles.sectionTitle}>Segurança</Text>
-            <View style={styles.panel}>
-              <View style={styles.panelRow}>
-                <MaterialCommunityIcons name={hasPin ? 'lock' : 'lock-open-variant-outline'} size={22} color={hasPin ? color : theme.colors.textSecondary} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.panelTitle}>{hasPin ? 'PIN ativado' : 'Sem PIN'}</Text>
-                  <Text style={styles.panelHelp}>
-                    {hasPin ? 'O Control pede o PIN ao abrir.' : 'Qualquer pessoa com o celular abre o Control.'}
-                  </Text>
+            <Pressable style={styles.photoBtn} onPress={pickImage}>
+              <MaterialCommunityIcons name="image-plus" size={20} color={theme.colors.primary} />
+              <Text style={styles.photoText}>Usar foto</Text>
+            </Pressable>
+
+            <Text style={styles.sectionTitle}>SEGURANÇA</Text>
+
+            {/* CARD DO PIN */}
+            <View style={[styles.card, { marginBottom: 12 }]}>
+              <View style={styles.pinHeader}>
+                <MaterialCommunityIcons name="dialpad" size={24} color={theme.colors.primary} />
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.pinTitle}>{perfil.hasPin ? 'PIN Ativado' : 'Sem PIN'}</Text>
+                  <Text style={styles.pinSubtitle}>{perfil.hasPin ? 'O Control pede o PIN ao abrir.' : 'Qualquer pessoa com seu celular abre o Control.'}</Text>
                 </View>
               </View>
-              <View style={styles.photoRow}>
-                <Pressable style={styles.secondaryButton} onPress={() => setCreatingPin(true)}>
-                  <MaterialCommunityIcons name="numeric" size={20} color={theme.colors.primary} />
-                  <Text style={styles.secondaryText}>{hasPin ? 'Trocar PIN' : 'Definir PIN'}</Text>
-                </Pressable>
-                {hasPin && (
-                  <Pressable style={styles.secondaryButton} onPress={() => setPin({ kind: 'remove' })}>
-                    <MaterialCommunityIcons name="lock-off-outline" size={20} color={theme.colors.textSecondary} />
-                    <Text style={[styles.secondaryText, { color: theme.colors.textSecondary }]}>Remover PIN</Text>
+              <View style={styles.pinActions}>
+                {perfil.hasPin ? (
+                  <>
+                    <Pressable style={styles.pinButton} onPress={() => setModal('pin')}>
+                      <MaterialCommunityIcons name="pencil" size={20} color={theme.colors.primary} />
+                      <Text style={styles.pinButtonText}>Trocar PIN</Text>
+                    </Pressable>
+                    <Pressable style={styles.pinButton} onPress={() => setModal('remove_pin')}>
+                      <MaterialCommunityIcons name="delete-outline" size={20} color={theme.colors.danger} />
+                      <Text style={[styles.pinButtonText, { color: theme.colors.danger }]}>Remover PIN</Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <Pressable style={styles.pinButton} onPress={() => setModal('pin')}>
+                    <MaterialCommunityIcons name="plus" size={20} color={theme.colors.primary} />
+                    <Text style={styles.pinButtonText}>Definir PIN</Text>
                   </Pressable>
                 )}
               </View>
             </View>
 
-            <Text style={styles.sectionTitle}>Conta Google</Text>
-            <Pressable style={styles.panel} onPress={() => router.push('/conta')} accessibilityRole="button">
-              <View style={styles.panelRow}>
-                <MaterialCommunityIcons name="google" size={22} color={theme.colors.primary} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.panelTitle}>Conta e backup</Text>
-                  <Text style={[styles.panelHelp, { marginTop: 4 }]}>
-                    Ligue seu perfil à conta Google para levar as gavetas para a nuvem e compartilhar.
-                  </Text>
+            {/* CARD DA BIOMETRIA */}
+            <View style={styles.card}>
+              <View style={styles.pinHeader}>
+                <MaterialCommunityIcons name="fingerprint" size={24} color={theme.colors.primary} />
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.pinTitle}>{useBio ? 'Biometria Ativada' : 'Biometria Desativada'}</Text>
+                  <Text style={styles.pinSubtitle}>Use sua digital ou rosto para entrar.</Text>
                 </View>
-                <MaterialCommunityIcons name="chevron-right" size={22} color={theme.colors.textSecondary} />
+              </View>
+              <View style={styles.pinActions}>
+                {useBio ? (
+                  <Pressable style={styles.pinButton} onPress={toggleBiometrics}>
+                    <MaterialCommunityIcons name="fingerprint-off" size={20} color={theme.colors.danger} />
+                    <Text style={[styles.pinButtonText, { color: theme.colors.danger }]}>Remover Biometria</Text>
+                  </Pressable>
+                ) : (
+                  <Pressable style={styles.pinButton} onPress={toggleBiometrics}>
+                    <MaterialCommunityIcons name="fingerprint" size={20} color={theme.colors.primary} />
+                    <Text style={styles.pinButtonText}>Ativar Biometria</Text>
+                  </Pressable>
+                )}
+              </View>
+            </View>
+
+            <Text style={styles.sectionTitle}>CONTA GOOGLE</Text>
+            <Pressable style={styles.card} onPress={() => router.push('/conta')}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <MaterialCommunityIcons name="google" size={24} color={theme.colors.primary} />
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.pinTitle}>Conta e backup</Text>
+                  <Text style={styles.pinSubtitle}>Ligue seu perfil à conta Google para levar as gavetas para a nuvem.</Text>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={24} color={theme.colors.textSecondary} />
               </View>
             </Pressable>
 
-            <Pressable style={[styles.saveButton, { backgroundColor: color }, saving && { opacity: 0.6 }]} onPress={save} disabled={saving}>
-              <Text style={styles.saveText}>SALVAR</Text>
-            </Pressable>
           </ScrollView>
         </KeyboardAvoidingView>
+
+        <View style={styles.footer}>
+          <Pressable style={styles.saveButton} onPress={save}>
+            <Text style={styles.saveText}>SALVAR</Text>
+          </Pressable>
+        </View>
       </SafeAreaView>
 
-      {creatingPin && (
-        <PinModal
-          mode="create"
-          title={hasPin ? 'Novo PIN' : 'Definir PIN'}
-          subtitle="Digite de 4 a 6 números"
-          color={color}
-          onCreate={value => { setPin({ kind: 'set', pin: value }); setCreatingPin(false); }}
-          onCancel={() => setCreatingPin(false)}
-        />
-      )}
-
+      {modal === 'pin' && (
+          <PinModal
+            title="Crie seu PIN"
+            subtitle="Digite de 4 a 6 números"
+            mode="create"
+            onCreate={handleSetPin}
+            onCancel={() => setModal(null)}
+            cancelText="Cancelar"
+          />
+        )}
       <CustomModal
-        visible={!!notice}
-        title={notice?.title ?? ''}
-        message={notice?.message ?? ''}
-        onConfirm={() => setNotice(null)}
+        visible={modal === 'remove_pin'}
+        title="Remover PIN"
+        message="Tem certeza que deseja remover a proteção por PIN? O app ficará desbloqueado."
+        confirmText="Remover"
+        cancelText="Cancelar"
+        isDestructive
+        onConfirm={handleRemovePin}
+        onCancel={() => setModal(null)}
+      />
+      <CustomModal
+        visible={modal === 'success'}
+        title="Sucesso"
+        message="O PIN foi configurado com sucesso."
+        onConfirm={() => setModal(null)}
       />
     </LinearGradient>
   );
@@ -201,26 +219,23 @@ export default function MeuPerfilScreen() {
 const useStyles = makeStyles(theme => ({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12 },
-  backButton: { padding: 4 },
-  headerTitle: { fontSize: 20, fontFamily: theme.fonts.bold, color: theme.colors.primary, letterSpacing: 1 },
-  content: { padding: 16, paddingBottom: 48 },
-  preview: { alignItems: 'center', marginBottom: 8 },
-  previewName: { color: theme.colors.text, fontFamily: theme.fonts.bold, fontSize: 22, marginTop: 12 },
-  label: { color: theme.colors.primary, fontFamily: theme.fonts.medium, fontSize: 13, marginTop: 20, marginBottom: 8 },
-  input: { borderWidth: 1, borderColor: theme.colors.border, borderRadius: 10, padding: 12, fontSize: 16, fontFamily: theme.fonts.regular, color: theme.colors.text, backgroundColor: theme.colors.panel },
-  wrapRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  colorDot: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  colorDotActive: { borderWidth: 3, borderColor: theme.colors.text },
-  iconOption: { width: 52, height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.panel },
-  iconInitial: { fontFamily: theme.fonts.bold, fontSize: 22 },
-  photoRow: { flexDirection: 'row', gap: 10, marginTop: 12, flexWrap: 'wrap' },
-  secondaryButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.panel },
-  secondaryText: { color: theme.colors.primary, fontFamily: theme.fonts.medium, fontSize: 14 },
-  sectionTitle: { color: theme.colors.textSecondary, fontFamily: theme.fonts.bold, fontSize: 12, letterSpacing: 2, marginTop: 28, marginBottom: 8, textTransform: 'uppercase' },
-  panel: { padding: 16, borderRadius: 14, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.panel },
-  panelRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  panelTitle: { color: theme.colors.text, fontFamily: theme.fonts.bold, fontSize: 15 },
-  panelHelp: { color: theme.colors.textSecondary, fontFamily: theme.fonts.regular, fontSize: 13, marginTop: 10 },
-  saveButton: { padding: 16, borderRadius: 14, alignItems: 'center', marginTop: 32 },
-  saveText: { color: theme.colors.onAccent, fontFamily: theme.fonts.bold, fontSize: 16, letterSpacing: 1 },
+  backButton: { padding: 8 },
+  title: { fontFamily: theme.fonts.bold, fontSize: 20, color: theme.colors.primary, letterSpacing: 1 },
+  label: { fontFamily: theme.fonts.bold, fontSize: 14, color: theme.colors.textSecondary, marginBottom: 8 },
+  input: { backgroundColor: theme.colors.panel, color: theme.colors.text, fontFamily: theme.fonts.medium, fontSize: 16, padding: 16, borderRadius: 8, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 24 },
+  colorCircle: { width: 44, height: 44, borderRadius: 22, borderWidth: 2 },
+  iconBox: { borderWidth: 2, borderRadius: 24, padding: 4 },
+  photoBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderWidth: 1, borderColor: theme.colors.primary, borderRadius: 8, alignSelf: 'flex-start', marginBottom: 32 },
+  photoText: { color: theme.colors.primary, fontFamily: theme.fonts.bold },
+  sectionTitle: { fontFamily: theme.fonts.bold, fontSize: 14, color: theme.colors.textSecondary, marginBottom: 12, letterSpacing: 1 },
+  card: { backgroundColor: theme.colors.panel, borderRadius: 12, borderWidth: 1, borderColor: theme.colors.border, padding: 16, marginBottom: 24 },
+  pinHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  pinTitle: { fontFamily: theme.fonts.bold, fontSize: 16, color: theme.colors.text, marginBottom: 4 },
+  pinSubtitle: { fontFamily: theme.fonts.regular, fontSize: 13, color: theme.colors.textSecondary },
+  pinActions: { flexDirection: 'row', gap: 12 },
+  pinButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: theme.colors.background },
+  pinButtonText: { fontFamily: theme.fonts.medium, fontSize: 14, color: theme.colors.primary },
+  footer: { padding: 24, borderTopWidth: 1, borderTopColor: theme.colors.border },
+  saveButton: { backgroundColor: theme.colors.primary, padding: 16, borderRadius: 8, alignItems: 'center' },
+  saveText: { color: theme.colors.background, fontFamily: theme.fonts.bold, fontSize: 16 },
 }));

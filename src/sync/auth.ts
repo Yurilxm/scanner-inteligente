@@ -10,7 +10,7 @@ export const AUTH_REDIRECT = 'scannerinteligente://auth-callback';
 
 WebBrowser.maybeCompleteAuthSession();
 
-// Lê ?code=... (PKCE) ou o erro devolvido pelo provedor na URL de retorno
+// LÃƒÂª ?code=... (PKCE) ou o erro devolvido pelo provedor na URL de retorno
 export function parseAuthRedirect(url: string): { code: string | null; error: string | null } {
   const query = url.split('#')[0].split('?')[1] ?? '';
   const params = new Map(query.split('&').filter(Boolean).map(pair => {
@@ -26,14 +26,14 @@ export class LoginCancelled extends Error {
   }
 }
 
-// Login nativo: janela do próprio Android ("Continuar no Control"), sem mostrar o endereço do
+// Login nativo: janela do prÃƒÂ³prio Android ("Continuar no Control"), sem mostrar o endereÃƒÂ§o do
 // servidor. Usa o Credential Manager. O Google recebe o hash do nonce e o Supabase o valor
-// original: um token interceptado não serve para outro login.
+// original: um token interceptado nÃƒÂ£o serve para outro login.
 export async function signInWithGoogleNative(): Promise<Session> {
   const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
-  if (!webClientId) throw new Error('Login nativo não configurado (EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID).');
+  if (!webClientId) throw new Error('Login nativo nÃƒÂ£o configurado (EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID).');
 
-  // Carregada só aqui: num APK sem o módulo nativo, o require falha e quem chamou usa o navegador
+  // Carregada sÃƒÂ³ aqui: num APK sem o mÃƒÂ³dulo nativo, o require falha e quem chamou usa o navegador
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { signUpWithGoogle } = require('react-native-credentials-manager') as typeof import('react-native-credentials-manager');
   const rawNonce = randomToken();
@@ -52,12 +52,12 @@ export async function signInWithGoogleNative(): Promise<Session> {
   }
 
   const { data, error } = await supabase().auth.signInWithIdToken({ provider: 'google', token: idToken, nonce: rawNonce });
-  if (error || !data.session) throw new Error(error?.message ?? 'O login não devolveu a sessão.');
+  if (error || !data.session) throw new Error(error?.message ?? 'O login nÃƒÂ£o devolveu a sessÃƒÂ£o.');
   return data.session;
 }
 
-// Abre a escolha de conta do Google numa aba segura e volta para o app já logado.
-// Retorna null se a pessoa cancelou. Usado quando o login nativo não está disponível.
+// Abre a escolha de conta do Google numa aba segura e volta para o app jÃƒÂ¡ logado.
+// Retorna null se a pessoa cancelou. Usado quando o login nativo nÃƒÂ£o estÃƒÂ¡ disponÃƒÂ­vel.
 export async function signInWithGoogle(): Promise<Session | null> {
   const { data, error } = await supabase().auth.signInWithOAuth({
     provider: 'google',
@@ -65,9 +65,15 @@ export async function signInWithGoogle(): Promise<Session | null> {
   });
   if (error || !data?.url) throw new Error(error?.message ?? 'Não foi possível iniciar o login.');
 
-  // (Removemos a injeção manual da apikey que estava aqui)
+  // CORREÇÃO: Injeta a chave na URL para o navegador do celular
+  let authUrl = data.url;
+  const apiKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (apiKey && !authUrl.includes('apikey=')) {
+    const separator = authUrl.includes('?') ? '&' : '?';
+    authUrl += `${separator}apikey=${apiKey}`;
+  }
 
-  const result = await WebBrowser.openAuthSessionAsync(data.url, AUTH_REDIRECT);
+  const result = await WebBrowser.openAuthSessionAsync(authUrl, AUTH_REDIRECT);
   if (result.type !== 'success') return null;
 
   const { code, error: providerError } = parseAuthRedirect(result.url);
@@ -78,7 +84,7 @@ export async function signInWithGoogle(): Promise<Session | null> {
 
 // No Android, a volta do Google chega por dois caminhos: a aba do navegador (acima) e o link
 // scannerinteligente://auth-callback, que reabre o app na tela auth-callback. Os dois trazem o
-// mesmo código, que só pode ser trocado uma vez: quem chegar depois reaproveita a mesma troca.
+// mesmo cÃƒÂ³digo, que sÃƒÂ³ pode ser trocado uma vez: quem chegar depois reaproveita a mesma troca.
 const exchanges = new Map<string, Promise<Session | null>>();
 
 export function completeLogin(code: string): Promise<Session | null> {
@@ -89,7 +95,7 @@ export function completeLogin(code: string): Promise<Session | null> {
       if (existing) return existing;
       const exchanged = await supabase().auth.exchangeCodeForSession(code);
       if (exchanged.error) {
-        // O outro caminho pode ter trocado o código um instante antes
+        // O outro caminho pode ter trocado o cÃƒÂ³digo um instante antes
         const after = await currentSession();
         if (after) return after;
         throw new Error(exchanged.error.message);

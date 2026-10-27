@@ -1,6 +1,6 @@
 jest.mock('expo-sqlite', () => require('../test-utils/nodeSqlite'));
 import * as SQLite from 'expo-sqlite';
-import * as fs from 'fs';
+
 
 describe('Banco local (SQL real)', () => {
   let db: typeof import('../src/db/database');
@@ -21,7 +21,7 @@ describe('Banco local (SQL real)', () => {
     expect(tabelas.map(t => t.name)).toContain('learned_categories');
   });
 
-  it('salvar marca conteúdo e pagamento para envio', () => {
+  it('salvar marca conteÃºdo e pagamento para envio', () => {
     const id = db.saveDocument('file:///b.jpg', 'texto', { documentType: 'BOLETO', issuer: 'ENEL', referenceMonth: null, cnpj: null, cpf: null, totalAmountCents: 100, dueDate: '2026-10-01', boletoLine: null });
     expect(db.getDocumentById(id)).toMatchObject({ issuer: 'ENEL', contentDirty: 1, paymentDirty: 1, isPaid: 0 });
   });
