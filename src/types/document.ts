@@ -15,6 +15,9 @@ export type ExtractedFields = {
   // recebem paymentDate em parametro separado.
   paymentDate?: string | null;     // ISO YYYY-MM-DD detectada no comprovante PIX
   paymentTime?: string | null;     // HH:MM:SS detectado no comprovante PIX (display)
+
+  // Conta manual (cadastro sem comprovante). Opcional.
+  pixKey?: string | null;          // Chave Pix do recebedor (texto livre)
 };
 
 export type ExtractedDocument = {

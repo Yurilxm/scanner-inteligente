@@ -44,6 +44,7 @@ const DOCUMENTS_SCHEMA = `
   dueDate TEXT,
   boletoLine TEXT,
   ocrText TEXT,
+  pixKey TEXT,
   isPaid INTEGER DEFAULT 0,
   paymentDate TEXT,
   createdAt TEXT NOT NULL
@@ -157,7 +158,7 @@ function initSchema(target: Db) {
   // Migração segura de colunas antigas
   const columns: [string, string][] = [
     ['issuer', 'TEXT'], ['referenceMonth', 'TEXT'], ['dueDate', 'TEXT'], ['isPaid', 'INTEGER DEFAULT 0'],
-    ['paymentDate', 'TEXT'], ['cnpj', 'TEXT'], ['cpf', 'TEXT'], ['totalAmountCents', 'INTEGER'], ['boletoLine', 'TEXT'], ['observacao', 'TEXT'],
+    ['paymentDate', 'TEXT'], ['cnpj', 'TEXT'], ['cpf', 'TEXT'], ['totalAmountCents', 'INTEGER'], ['boletoLine', 'TEXT'], ['observacao', 'TEXT'], ['pixKey', 'TEXT'],
   ];
   for (const [col, type] of columns) {
     try { target.execSync(`ALTER TABLE documents ADD COLUMN ${col} ${type};`); } catch {}
@@ -190,9 +191,9 @@ export function saveDocument(imageUri: string, ocrText: string, fields: Extracte
   const createdAt = new Date().toISOString();
   const isPaid = paymentDate ? 1 : 0;
   db.runSync(
-    `INSERT INTO documents (id, imageUri, documentType, issuer, referenceMonth, cnpj, cpf, totalAmountCents, dueDate, boletoLine, ocrText, observacao, isPaid, paymentDate, createdAt, updatedAt, paymentUpdatedAt, contentDirty, paymentDirty)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1)`,
-    id, imageUri, fields.documentType || null, fields.issuer || null, fields.referenceMonth || null, fields.cnpj || null, fields.cpf || null, fields.totalAmountCents || null, fields.dueDate || null, fields.boletoLine || null, ocrText || null, observacao || null, isPaid, paymentDate || null, createdAt, createdAt, createdAt
+    `INSERT INTO documents (id, imageUri, documentType, issuer, referenceMonth, cnpj, cpf, totalAmountCents, dueDate, boletoLine, ocrText, pixKey, observacao, isPaid, paymentDate, createdAt, updatedAt, paymentUpdatedAt, contentDirty, paymentDirty)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1)`,
+    id, imageUri, fields.documentType || null, fields.issuer || null, fields.referenceMonth || null, fields.cnpj || null, fields.cpf || null, fields.totalAmountCents || null, fields.dueDate || null, fields.boletoLine || null, ocrText || null, fields.pixKey || null, observacao || null, isPaid, paymentDate || null, createdAt, createdAt, createdAt
   );
   return id;
 }
@@ -389,10 +390,10 @@ export function moveDocumentToProfile(id: string, targetProfileId: string): Save
   const now = new Date().toISOString();
   withProfileDb(targetProfileId, target => {
     target.runSync(
-      `INSERT OR REPLACE INTO documents (id, imageUri, documentType, issuer, referenceMonth, cnpj, cpf, totalAmountCents, dueDate, boletoLine, ocrText, isPaid, paymentDate, createdAt, updatedAt, paymentUpdatedAt, deletedAt, contentDirty, paymentDirty)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 1, 1)`,
+      `INSERT OR REPLACE INTO documents (id, imageUri, documentType, issuer, referenceMonth, cnpj, cpf, totalAmountCents, dueDate, boletoLine, ocrText, pixKey, isPaid, paymentDate, createdAt, updatedAt, paymentUpdatedAt, deletedAt, contentDirty, paymentDirty)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 1, 1)`,
       doc.id, doc.imageUri ?? '', doc.documentType, doc.issuer, doc.referenceMonth, doc.cnpj, doc.cpf,
-      doc.totalAmountCents, doc.dueDate, doc.boletoLine, doc.ocrText, doc.isPaid, doc.paymentDate ?? null,
+      doc.totalAmountCents, doc.dueDate, doc.boletoLine, doc.ocrText, doc.pixKey ?? null, doc.isPaid, doc.paymentDate ?? null,
       doc.createdAt, now, now,
     );
   });
@@ -421,7 +422,7 @@ type SyncLearnedRow = Omit<SyncLearned, 'dirty'> & { dirty: number };
 export function loadSyncSnapshot(profileId: string): SyncSnapshot {
   return withProfileDb(profileId, target => {
     const docs = target.getAllSync<SyncDocRow>(
-      `SELECT id, imageUri, documentType, issuer, referenceMonth, cnpj, cpf, totalAmountCents, dueDate, boletoLine, ocrText,
+      `SELECT id, imageUri, documentType, issuer, referenceMonth, cnpj, cpf, totalAmountCents, dueDate, boletoLine, ocrText, pixKey,
               isPaid, paymentDate, createdAt, updatedAt, paymentUpdatedAt, deletedAt, contentDirty, paymentDirty
        FROM documents`
     ) ?? [];
@@ -464,8 +465,8 @@ export function commitSync(profileId: string, commit: SyncCommit): void {
       target.execSync('BEGIN');
       for (const doc of commit.contents) {
         run(
-          `INSERT INTO documents (id, imageUri, documentType, issuer, referenceMonth, cnpj, cpf, totalAmountCents, dueDate, boletoLine, ocrText, isPaid, paymentDate, createdAt, updatedAt, paymentUpdatedAt, deletedAt, contentDirty, paymentDirty)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?, ?, 0, 0)
+          `INSERT INTO documents (id, imageUri, documentType, issuer, referenceMonth, cnpj, cpf, totalAmountCents, dueDate, boletoLine, ocrText, pixKey, isPaid, paymentDate, createdAt, updatedAt, paymentUpdatedAt, deletedAt, contentDirty, paymentDirty)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?, ?, 0, 0)
            ON CONFLICT(id) DO UPDATE SET
              imageUri = COALESCE(?, documents.imageUri),
              documentType = excluded.documentType,
@@ -477,12 +478,13 @@ export function commitSync(profileId: string, commit: SyncCommit): void {
              dueDate = excluded.dueDate,
              boletoLine = excluded.boletoLine,
              ocrText = excluded.ocrText,
+             pixKey = excluded.pixKey,
              createdAt = excluded.createdAt,
              updatedAt = excluded.updatedAt,
              deletedAt = excluded.deletedAt,
              contentDirty = 0`,
           doc.id, doc.imageUri ?? '', doc.documentType, doc.issuer, doc.referenceMonth, doc.cnpj, doc.cpf,
-          doc.totalAmountCents, doc.dueDate, doc.boletoLine, doc.ocrText, doc.createdAt, doc.updatedAt, doc.updatedAt, doc.deletedAt,
+          doc.totalAmountCents, doc.dueDate, doc.boletoLine, doc.ocrText, doc.pixKey ?? null, doc.createdAt, doc.updatedAt, doc.updatedAt, doc.deletedAt,
           doc.imageUri,
         );
       }
@@ -554,11 +556,11 @@ export function updateDocument(id: string, imageUri: string, ocrText: string, fi
   db.runSync(
     `UPDATE documents SET 
       imageUri = ?, documentType = ?, issuer = ?, referenceMonth = ?, cnpj = ?, cpf = ?, 
-      totalAmountCents = ?, dueDate = ?, boletoLine = ?, ocrText = ?, observacao = ?, 
+      totalAmountCents = ?, dueDate = ?, boletoLine = ?, ocrText = ?, pixKey = ?, observacao = ?, 
       isPaid = ?, paymentDate = ?, paymentUpdatedAt = ?, updatedAt = ?, contentDirty = 1, paymentDirty = 1
      WHERE id = ?`,
     imageUri, fields.documentType || null, fields.issuer || null, fields.referenceMonth || null,
     fields.cnpj || null, fields.cpf || null, fields.totalAmountCents || null, fields.dueDate || null,
-    fields.boletoLine || null, ocrText || null, observacao || null, isPaid, paymentDate || null, now, now, id
+    fields.boletoLine || null, ocrText || null, fields.pixKey || null, observacao || null, isPaid, paymentDate || null, now, now, id
   );
 }

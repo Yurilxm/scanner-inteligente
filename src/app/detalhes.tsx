@@ -154,6 +154,11 @@ export default function DetalhesScreen() {
           <Text style={styles.headerTitle}>DETALHES</Text>
           <Pressable
             onPress={() => {
+              // Conta sem comprovante: vai pra cadastro-manual (nao faz sentido revisao/OCR)
+              if (doc.documentType === 'CONTA' && !doc.imageUri) {
+                router.push({ pathname: '/cadastro-manual', params: { editId: doc.id } });
+                return;
+              }
               setImageUri(doc.imageUri);
               setOcrText(doc.ocrText);
               setFields({
@@ -165,6 +170,7 @@ export default function DetalhesScreen() {
                 totalAmountCents: doc.totalAmountCents,
                 dueDate: doc.dueDate,
                 boletoLine: doc.boletoLine,
+                pixKey: doc.pixKey,
               });
               router.push({ 
                 pathname: '/revisao', 

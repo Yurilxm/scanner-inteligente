@@ -15,6 +15,7 @@ export type DocumentPayload = {
   dueDate: string | null;
   boletoLine: string | null;
   ocrText: string | null;
+  pixKey?: string | null;
   createdAt: string;
   updatedAt: string;
   hasPhoto: boolean;
@@ -66,6 +67,7 @@ export type SyncDocument = {
   dueDate: string | null;
   boletoLine: string | null;
   ocrText: string | null;
+  pixKey?: string | null;
   isPaid: number;
   paymentDate: string | null;
   createdAt: string;
@@ -107,6 +109,7 @@ export type ContentWrite = {
   dueDate: string | null;
   boletoLine: string | null;
   ocrText: string | null;
+  pixKey?: string | null;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
@@ -225,6 +228,7 @@ function contentOf(doc: SyncDocument, hasPhoto: boolean): DocumentPayload {
     dueDate: doc.dueDate,
     boletoLine: doc.boletoLine,
     ocrText: doc.ocrText,
+    pixKey: doc.pixKey ?? null,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
     hasPhoto,
@@ -376,6 +380,7 @@ function stubDocument(id: string, at: string): SyncDocument {
     dueDate: null,
     boletoLine: null,
     ocrText: null,
+    pixKey: null,
     isPaid: 0,
     paymentDate: null,
     createdAt: at,
@@ -397,6 +402,7 @@ function fillContent(doc: SyncDocument, content: DocumentPayload) {
   doc.dueDate = content.dueDate;
   doc.boletoLine = content.boletoLine;
   doc.ocrText = content.ocrText;
+  doc.pixKey = content.pixKey ?? null;
   doc.createdAt = content.createdAt || doc.createdAt;
   doc.updatedAt = content.updatedAt;
   doc.deletedAt = null;
@@ -415,6 +421,7 @@ function contentWrite(doc: SyncDocument, imageUri: string | null): ContentWrite 
     dueDate: doc.dueDate,
     boletoLine: doc.boletoLine,
     ocrText: doc.deletedAt ? null : doc.ocrText,
+    pixKey: doc.pixKey ?? null,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
     deletedAt: doc.deletedAt,

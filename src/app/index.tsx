@@ -138,6 +138,14 @@ export default function HomeScreen() {
 
         <Pressable
           style={styles.buttonSecondary}
+          onPress={() => router.push('/cadastro-manual')}
+        >
+          <MaterialCommunityIcons name="calendar-plus" size={24} color={theme.colors.primary} />
+          <Text style={styles.buttonTextSecondary}>CADASTRAR CONTA SEM COMPROVANTE</Text>
+        </Pressable>
+
+        <Pressable
+          style={styles.buttonSecondary}
           onPress={() => router.push('/biblioteca')}
         >
           <MaterialCommunityIcons name="file-document-multiple-outline" size={24} color={theme.colors.primary} />
