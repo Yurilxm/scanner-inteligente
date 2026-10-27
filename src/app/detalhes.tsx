@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import * as Clipboard from 'expo-clipboard';
 import { View, Text, Image, Pressable, ScrollView, Modal, TextInput, BackHandler, Alert } from 'react-native';
 import { useLocalSearchParams, router, useNavigation } from 'expo-router';
 import { getCurrentProfile, getDocumentById, deleteDocumentById, moveDocumentToProfile, togglePaidStatus, updateDocumentIssuer, SavedDocument } from '../db/database';
@@ -67,6 +66,19 @@ export default function DetalhesScreen() {
   if (!doc) return null;
 
   const isPix = doc.documentType === 'PIX';
+
+  // Lazy import: expo-clipboard e modulo NATIVO. Se o APK nao foi rebuildado
+  // apos instalar a dependencia, o import top-level crasharia o detalhes.
+  // Aqui, so falha (com mensagem amigavel) se o usuario tocar em COPIAR.
+  const copyPixKey = async (text: string) => {
+    try {
+      const mod = await import('expo-clipboard');
+      await mod.setStringAsync(text);
+      Alert.alert('Copiado!', 'A chave Pix foi copiada.');
+    } catch {
+      Alert.alert('Nao foi possivel copiar', 'Atualize o app (novo APK) para usar esta funcao.');
+    }
+  };
 
   const handleSendDiagnostics = async () => {
     try {
@@ -222,10 +234,7 @@ export default function DetalhesScreen() {
               <>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Text style={styles.label}>Chave Pix</Text>
-                  <Pressable onPress={async () => {
-                    await Clipboard.setStringAsync(doc.pixKey || '');
-                    Alert.alert('Copiado!', 'A chave Pix foi copiada.');
-                  }}>
+                  <Pressable onPress={() => copyPixKey(doc.pixKey || '')}>
                     <Text style={{ color: theme.colors.primary, fontSize: 13, fontFamily: theme.fonts.bold }}>COPIAR</Text>
                   </Pressable>
                 </View>

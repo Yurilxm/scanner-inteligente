@@ -151,7 +151,7 @@ export default function LembretesScreen() {
           <ActivityIndicator size="large" color={theme.colors.primary} style={{ marginTop: 48 }} />
         ) : (
           <FlatList
-            data={items.length > 1 ? items : []}
+            data={items.length > 1 ? items.slice(1) : []}
             keyExtractor={item => item.identifier}
             contentContainerStyle={styles.list}
             ListHeaderComponent={header}

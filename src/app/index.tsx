@@ -137,7 +137,7 @@ export default function HomeScreen() {
         )}
 
         <Pressable
-          style={styles.buttonSecondary}
+          style={[styles.buttonSecondary, { marginBottom: 16 }]}
           onPress={() => router.push('/cadastro-manual')}
         >
           <MaterialCommunityIcons name="note-plus-outline" size={24} color={theme.colors.primary} />
