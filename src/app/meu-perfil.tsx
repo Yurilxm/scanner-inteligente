@@ -23,8 +23,19 @@ export default function MeuPerfilScreen() {
   const [color, setColor] = useState(perfil.color);
   const [icon, setIcon] = useState(perfil.icon);
   const [photoUri, setPhotoUri] = useState(perfil.photoUri);
-  const [modal, setModal] = useState<'pin' | 'remove_pin' | 'success' | null>(null);
+  const [modal, setModal] = useState<'pin' | 'remove_pin' | 'remove_bio' | 'success' | null>(null);
   const [useBio, setUseBio] = useState(appSetting('use_biometrics') === 'true');
+  const [showExitModal, setShowExitModal] = useState(false);
+
+  const hasChanges = name !== perfil.name || color !== perfil.color || icon !== perfil.icon || photoUri !== perfil.photoUri;
+  
+  const handleBack = () => {
+    if (hasChanges) {
+      setShowExitModal(true);
+    } else {
+      router.back();
+    }
+  };
 
   const save = () => {
     updatePerfil({ name, color, icon });
@@ -52,6 +63,15 @@ export default function MeuPerfilScreen() {
     setModal(null);
   };
 
+  const handleRemoveBio = () => {
+    if (perfil.hasPin) {
+      setAppSettingValue('use_biometrics', 'false');
+      setUseBio(false);
+    } else {
+      setModal('remove_bio');
+    }
+  };
+
   const toggleBiometrics = async () => {
     if (useBio) {
       setAppSettingValue('use_biometrics', 'false');
@@ -70,7 +90,7 @@ export default function MeuPerfilScreen() {
       <ScannerBackground />
       <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom', 'left', 'right']}>
         <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
+          <Pressable style={styles.backButton} onPress={handleBack}>
             <MaterialCommunityIcons name="arrow-left" size={28} color={theme.colors.primary} />
           </Pressable>
           <Text style={styles.title}>MEU PERFIL</Text>
@@ -126,7 +146,7 @@ export default function MeuPerfilScreen() {
                       <MaterialCommunityIcons name="pencil" size={20} color={theme.colors.primary} />
                       <Text style={styles.pinButtonText}>Trocar PIN</Text>
                     </Pressable>
-                    <Pressable style={styles.pinButton} onPress={() => setModal('remove_pin')}>
+                    <Pressable style={styles.pinButton} onPress={() => { if (useBio) { setAppPin(null); setPerfil(getPerfil()); } else { setModal('remove_pin'); } }}>
                       <MaterialCommunityIcons name="delete-outline" size={20} color={theme.colors.danger} />
                       <Text style={[styles.pinButtonText, { color: theme.colors.danger }]}>Remover PIN</Text>
                     </Pressable>
@@ -151,7 +171,7 @@ export default function MeuPerfilScreen() {
               </View>
               <View style={styles.pinActions}>
                 {useBio ? (
-                  <Pressable style={styles.pinButton} onPress={toggleBiometrics}>
+                  <Pressable style={styles.pinButton} onPress={handleRemoveBio}>
                     <MaterialCommunityIcons name="fingerprint-off" size={20} color={theme.colors.danger} />
                     <Text style={[styles.pinButtonText, { color: theme.colors.danger }]}>Remover Biometria</Text>
                   </Pressable>
@@ -211,6 +231,37 @@ export default function MeuPerfilScreen() {
         title="Sucesso"
         message="O PIN foi configurado com sucesso."
         onConfirm={() => setModal(null)}
+      />
+
+      <CustomModal
+        visible={modal === 'remove_bio'}
+        title="Remover Biometria"
+        message="Tem certeza que deseja remover a proteção por biometria? O app ficará desbloqueado."
+        confirmText="Remover"
+        cancelText="Cancelar"
+        isDestructive
+        onConfirm={() => { setAppSettingValue('use_biometrics', 'false'); setUseBio(false); setModal(null); }}
+        onCancel={() => setModal(null)}
+      />
+
+      <CustomModal
+        visible={showExitModal}
+        title="Alterações não salvas"
+        message="Você tem alterações que não foram salvas. Deseja salvar antes de sair?"
+        confirmText="Salvar"
+        cancelText="Sair sem salvar"
+        onConfirm={() => { save(); setShowExitModal(false); }}
+        onCancel={() => { setShowExitModal(false); router.back(); }}
+      />
+
+      <CustomModal
+        visible={showExitModal}
+        title="Alterações não salvas"
+        message="Você tem alterações que não foram salvas. Deseja salvar antes de sair?"
+        confirmText="Salvar"
+        cancelText="Sair sem salvar"
+        onConfirm={() => { save(); setShowExitModal(false); }}
+        onCancel={() => { setShowExitModal(false); router.back(); }}
       />
     </LinearGradient>
   );

@@ -94,7 +94,8 @@ export async function removePerfilPhoto(): Promise<void> {
 // ---- PIN do app (pedido ao abrir) ----
 
 export function needsAppPin(): boolean {
-  return getPerfil().hasPin && !isUnlocked(PIN_ID);
+  const isBioActive = appSetting('use_biometrics') === 'true';
+  return !isUnlocked('__app__') && (getPerfil().hasPin || isBioActive);
 }
 
 // null se deu certo; senão a mensagem para mostrar
