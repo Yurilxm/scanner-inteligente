@@ -29,7 +29,7 @@ export default function RevisaoScreen() {
   const theme = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
-  const { editId } = useLocalSearchParams<{ editId?: string }>();
+  const { editId, editPaymentDate: initialPayDate, editObservacao: initialObs } = useLocalSearchParams<{ editId?: string, editPaymentDate?: string, editObservacao?: string }>();
   const { imageUri, ocrText, setOcrText, fields, setFields, reset } = useDocument();
   const [isLoading, setIsLoading] = useState(true);
   const [isImageVisible, setIsImageVisible] = useState(false);

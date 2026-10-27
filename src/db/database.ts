@@ -189,11 +189,10 @@ export function saveDocument(imageUri: string, ocrText: string, fields: Extracte
   const id = generateId();
   const createdAt = new Date().toISOString();
   const isPaid = paymentDate ? 1 : 0;
-    const obs = observacao || null;
   db.runSync(
-    `INSERT INTO documents (id, imageUri, documentType, issuer, referenceMonth, cnpj, cpf, totalAmountCents, dueDate, boletoLine, ocrText, isPaid, paymentDate, createdAt, updatedAt, paymentUpdatedAt, contentDirty, paymentDirty)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1)`,
-    id, imageUri, fields.documentType || null, fields.issuer || null, fields.referenceMonth || null, fields.cnpj || null, fields.cpf || null, fields.totalAmountCents || null, fields.dueDate || null, fields.boletoLine || null, ocrText || null, isPaid, paymentDate || null, createdAt, createdAt, createdAt
+    `INSERT INTO documents (id, imageUri, documentType, issuer, referenceMonth, cnpj, cpf, totalAmountCents, dueDate, boletoLine, ocrText, observacao, isPaid, paymentDate, createdAt, updatedAt, paymentUpdatedAt, contentDirty, paymentDirty)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1)`,
+    id, imageUri, fields.documentType || null, fields.issuer || null, fields.referenceMonth || null, fields.cnpj || null, fields.cpf || null, fields.totalAmountCents || null, fields.dueDate || null, fields.boletoLine || null, ocrText || null, observacao || null, isPaid, paymentDate || null, createdAt, createdAt, createdAt
   );
   return id;
 }

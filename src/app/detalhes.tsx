@@ -155,7 +155,14 @@ export default function DetalhesScreen() {
                 dueDate: doc.dueDate,
                 boletoLine: doc.boletoLine,
               });
-              router.push({ pathname: '/revisao', params: { editId: doc.id } });
+              router.push({ 
+                pathname: '/revisao', 
+                params: { 
+                  editId: doc.id,
+                  editPaymentDate: doc.paymentDate || '',
+                  editObservacao: doc.observacao || ''
+                } 
+              });
             }}
             style={styles.backButton}
           >

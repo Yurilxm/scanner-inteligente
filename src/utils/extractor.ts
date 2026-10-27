@@ -279,9 +279,12 @@ function extractIssuerFromBeneficiary(text: string): string | null {
   return clean.length >= 3 ? clean : null;
 }
 
-export async function extractFields(
+
+  export async function extractFields(
   rawData: any,
-  learnedCategories: { pattern: string; category: string }[] = [],
+  learnedCategories: {
+
+   pattern: string; category: string }[] = [],
   options: ExtractOptions = {}
 ): Promise<ExtractedFields> {
   let textInput = '';
@@ -296,6 +299,35 @@ export async function extractFields(
   }
 
   const text = cleanText(textInput);
+  // Logica especifica para PIX
+  if (text.includes('Comprovante de transferencia Pix') || text.includes('Dados de quem recebeu')) {
+    const r: ExtractedFields = {
+      documentType: 'PIX',
+      issuer: null,
+      referenceMonth: null,
+      cnpj: null,
+      cpf: null,
+      totalAmountCents: null,
+      dueDate: null,
+      boletoLine: null,
+    };
+
+    const nameMatch = text.match(/Dados de quem recebeu[\s\S]*?Nome\s+([\s\S]*?)(?=CPF\/CNPJ|CPF|CNPJ)/i);
+    if (nameMatch) r.issuer = nameMatch[1].trim();
+
+    const docMatch = text.match(/CPF\/CNPJ\s*([\d\.\-\/]+)/i);
+    if (docMatch) {
+      const docClean = docMatch[1].replace(/\D/g, '');
+      if (docClean.length === 14) r.cnpj = docClean;
+      if (docClean.length === 11) r.cpf = docClean;
+    }
+
+    const valMatch = text.match(/Valor:\s*R\$\s*([\d\.,]+)/i);
+    if (valMatch) r.totalAmountCents = parseToCents(valMatch[1]);
+
+    return r;
+  }
+
   if (!text.trim()) {
     return { documentType: 'OUTROS', issuer: null, referenceMonth: null, cnpj: null, cpf: null, totalAmountCents: null, dueDate: null, boletoLine: null };
   }
