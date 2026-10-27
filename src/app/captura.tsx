@@ -11,6 +11,7 @@ import { saveImageLocally } from '../utils/files';
 import { ScannerBackground } from '../components/ScannerBackground';
 import { CustomToast } from '../components/CustomToast';
 import { makeStyles, useTheme } from '../theme';
+import { AppStateFlag } from '../utils/AppStateFlag';
 
 export default function CapturaScreen() {
   const theme = useTheme();
@@ -34,6 +35,7 @@ export default function CapturaScreen() {
   const onScan = async () => {
     if (isProcessing) return;
     setIsProcessing(true);
+    AppStateFlag.setPickingImage(true); // AVISA O LAYOUT QUE A CÂMERA VAI ABRIR
     try {
       const result = await DocumentScanner.scanDocument({ maxNumDocuments: 1 });
       const uri = result?.pages?.[0]?.uri;
@@ -45,6 +47,8 @@ export default function CapturaScreen() {
         setToast({ msg: `Erro no scanner: ${message}`, type: 'error' });
       }
       setIsProcessing(false);
+    } finally {
+      AppStateFlag.setPickingImage(false); // AVISA QUE A CÂMERA FECHOU
     }
   };
 
@@ -56,6 +60,7 @@ export default function CapturaScreen() {
       return;
     }
     setIsProcessing(true);
+    AppStateFlag.setPickingImage(true); // AVISA O LAYOUT QUE A GALERIA VAI ABRIR
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
@@ -70,13 +75,15 @@ export default function CapturaScreen() {
     } catch {
       setToast({ msg: 'Nao foi possivel importar a imagem.', type: 'error' });
       setIsProcessing(false);
+    } finally {
+      AppStateFlag.setPickingImage(false); // AVISA QUE A GALERIA FECHOU
     }
   };
 
   return (
     <LinearGradient colors={[theme.colors.background, theme.colors.backgroundGradient]} style={styles.container}>
       <ScannerBackground />
-      
+
       {toast && <CustomToast message={toast.msg} type={toast.type} onHide={() => setToast(null)} />}
 
       <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom', 'left', 'right']}>
