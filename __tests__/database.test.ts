@@ -31,4 +31,22 @@ describe('Banco local (SQL real)', () => {
     db.deleteDocumentById(id);
     expect(db.getDocumentById(id)).toBeNull();
   });
+
+  it('atualiza um documento existente sem criar um novo', () => {
+    const id = db.saveDocument('file:///old.jpg', 'texto velho', { documentType: 'BOLETO', issuer: 'ANTIGO', referenceMonth: null, cnpj: null, cpf: null, totalAmountCents: 100, dueDate: null, boletoLine: null });
+    
+    db.updateDocument(id, 'file:///new.jpg', 'texto novo', { documentType: 'PIX', issuer: 'NOVO', referenceMonth: null, cnpj: null, cpf: null, totalAmountCents: 200, dueDate: null, boletoLine: null });
+    
+    const updated = db.getDocumentById(id);
+    expect(updated).toMatchObject({
+      documentType: 'PIX',
+      issuer: 'NOVO',
+      totalAmountCents: 200,
+      imageUri: 'file:///new.jpg',
+      ocrText: 'texto novo'
+    });
+    
+    // Garante que não criou um documento duplicado
+    expect(db.getDocuments().filter(d => d.id === id).length).toBe(1);
+  });
 });

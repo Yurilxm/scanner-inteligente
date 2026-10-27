@@ -18,6 +18,7 @@ import { cleanupDebugFiles } from '../utils/files';
 import { applyProfileTheme } from '../utils/profileManager';
 import { migrateToSinglePerfil, getPerfil, needsAppPin, appSetting, tryUnlockApp } from '../utils/perfil';
 import { useTheme } from '../theme';
+import { AppStateFlag } from '../utils/AppStateFlag';
 import { AnimatedSplash } from '../components/AnimatedSplash';
 import { ScannerBackground } from '../components/ScannerBackground';
 import { ProfileAvatar } from '../components/ProfileAvatar';
@@ -59,7 +60,7 @@ export default function RootLayout() {
   useEffect(() => {
     const sub = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'background' || nextAppState === 'inactive') {
-        if (needsAppPin()) setIsLocked(true);
+        if (!AppStateFlag.isPickingImage() && needsAppPin()) setIsLocked(true);
       }
     });
     return () => sub.remove();

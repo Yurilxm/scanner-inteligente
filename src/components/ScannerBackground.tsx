@@ -9,16 +9,19 @@ export function ScannerBackground() {
   const styles = useStyles();
   const { width, height } = useWindowDimensions();
   const translateY = useSharedValue(-100);
-  const neon = theme.scanner === 'neon';
+
+  const lineColor = theme.name === 'legacy' ? theme.colors.primary 
+                  : theme.name === 'claro' ? 'rgba(0,0,0,0.15)' 
+                  : 'rgba(255,255,255,0.25)';
 
   useEffect(() => {
-    if (!neon) return;
+    translateY.value = -100;
     translateY.value = withRepeat(
-      withTiming(height, { duration: 4000, easing: Easing.linear }),
+      withTiming(height + 100, { duration: 3500, easing: Easing.linear }),
       -1,
       false
     );
-  }, [height, translateY, neon]);
+  }, [height, translateY]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
@@ -30,12 +33,11 @@ export function ScannerBackground() {
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {/* Grade Quadriculada */}
       <Svg width="100%" height="100%">
         <Defs>
           <SvgGradient id="scanGrad" x1="0" y1="0" x2="1" y2="0">
             <Stop offset="0" stopColor="transparent" stopOpacity="0" />
-            <Stop offset="0.5" stopColor={theme.colors.primary} stopOpacity="0.6" />
+            <Stop offset="0.5" stopColor={lineColor} stopOpacity="1" />
             <Stop offset="1" stopColor="transparent" stopOpacity="0" />
           </SvgGradient>
         </Defs>
@@ -47,25 +49,22 @@ export function ScannerBackground() {
         ))}
       </Svg>
 
-      {/* Linha de Varredura Animada (só no tema neon) */}
-      {neon && (
-        <Animated.View style={[styles.scanLine, animatedStyle]}>
-          <Svg width="100%" height="2">
-            <Rect x="0" y="0" width="100%" height="2" fill="url(#scanGrad)" />
-          </Svg>
-        </Animated.View>
-      )}
+      <Animated.View style={[styles.scanLine, animatedStyle]}>
+        <Svg width="100%" height="2">
+          <Rect x="0" y="0" width="100%" height="2" fill="url(#scanGrad)" />
+        </Svg>
+      </Animated.View>
     </View>
   );
 }
 
-const useStyles = makeStyles(theme => ({
+const useStyles = makeStyles((theme) => ({
   scanLine: {
     position: 'absolute',
     left: 0,
     right: 0,
     height: 2,
-    shadowColor: theme.colors.primary,
+    shadowColor: theme.name === 'claro' ? '#000' : theme.colors.primary,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 10,
