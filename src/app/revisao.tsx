@@ -3,9 +3,9 @@ import { View, Text, TextInput, Image, Pressable, Alert, KeyboardAvoidingView, P
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ZoomableImage } from '../components/ZoomableImage';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { File } from 'expo-file-system';
-import { saveDocument, getLearnedCategories } from '../db/database';
+import { saveDocument, updateDocument, getLearnedCategories } from '../db/database';
 import { appSetting } from '../utils/perfil';
 import { scheduleActiveSync } from '../sync/schedule';
 import { useDocument } from '../context/DocumentContext';
@@ -29,6 +29,7 @@ export default function RevisaoScreen() {
   const theme = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
+  const { editId } = useLocalSearchParams<{ editId?: string }>();
   const { imageUri, ocrText, setOcrText, fields, setFields, reset } = useDocument();
   const [isLoading, setIsLoading] = useState(true);
   const [isImageVisible, setIsImageVisible] = useState(false);
@@ -149,7 +150,14 @@ export default function RevisaoScreen() {
 
     setIsSaving(true);
     try {
-      const savedId = saveDocument(imageUri!, ocrText || '', finalFields, paymentDateIso);
+      let savedId: string;
+      if (editId) {
+        updateDocument(editId, imageUri!, ocrText || '', fields);
+        savedId = editId;
+        Alert.alert('Sucesso', 'Documento atualizado com sucesso.');
+      } else {
+        savedId = saveDocument(imageUri!, ocrText || '', fields);
+      }
       scheduleActiveSync();
       
       try {

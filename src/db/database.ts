@@ -539,3 +539,17 @@ export function resetSyncState(profileId: string): void {
   });
 }
 
+
+// Atualiza um documento existente (usado na edição)
+export function updateDocument(id: string, imageUri: string, ocrText: string, fields: ExtractedFields): void {
+  const now = new Date().toISOString();
+  db.runSync(
+    `UPDATE documents SET 
+      imageUri = ?, documentType = ?, issuer = ?, referenceMonth = ?, cnpj = ?, cpf = ?, 
+      totalAmountCents = ?, dueDate = ?, boletoLine = ?, ocrText = ?, updatedAt = ?, contentDirty = 1
+     WHERE id = ?`,
+    imageUri, fields.documentType || null, fields.issuer || null, fields.referenceMonth || null,
+    fields.cnpj || null, fields.cpf || null, fields.totalAmountCents || null, fields.dueDate || null,
+    fields.boletoLine || null, ocrText || null, now, id
+  );
+}

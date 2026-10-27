@@ -19,11 +19,13 @@ import { getDiagnosticsUrl, sendDiagnostics } from '../utils/devDiagnostics';
 import { Profile, canEdit, canPay, listProfiles } from '../db/profiles';
 import { ProfileAvatar } from '../components/ProfileAvatar';
 import { activeProfileRole } from '../utils/profileManager';
+import { useDocument } from '../context/DocumentContext';
 
 export default function DetalhesScreen() {
   const theme = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
+  const { setImageUri, setOcrText, setFields } = useDocument();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [doc, setDoc] = useState<SavedDocument | null>(() => (id ? getDocumentById(id) : null));
   const [zoomVisible, setZoomVisible] = useState(false);
@@ -48,7 +50,8 @@ export default function DetalhesScreen() {
       return false;
     };
     const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
-    return () => subscription.remove();
+    
+      return () => subscription.remove();
   }, [zoomVisible, payModalVisible, deleteVisible, reclassifyVisible, moveVisible]);
 
   if (!doc) return null;
@@ -138,7 +141,26 @@ export default function DetalhesScreen() {
             <MaterialCommunityIcons name="arrow-left" size={28} color={theme.colors.primary} />
           </Pressable>
           <Text style={styles.headerTitle}>DETALHES</Text>
-          <View style={{ width: 28 }} />
+          <Pressable
+            onPress={() => {
+              setImageUri(doc.imageUri);
+              setOcrText(doc.ocrText);
+              setFields({
+                documentType: doc.documentType,
+                issuer: doc.issuer,
+                referenceMonth: doc.referenceMonth,
+                cnpj: doc.cnpj,
+                cpf: doc.cpf,
+                totalAmountCents: doc.totalAmountCents,
+                dueDate: doc.dueDate,
+                boletoLine: doc.boletoLine,
+              });
+              router.push({ pathname: '/revisao', params: { editId: doc.id } });
+            }}
+            style={styles.backButton}
+          >
+            <MaterialCommunityIcons name="pencil" size={24} color={theme.colors.primary} />
+          </Pressable>
         </View>
         <ScrollView contentContainerStyle={styles.content}>
           {doc.imageUri ? (
