@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { View, Text, Image, Pressable, ScrollView, Modal, TextInput, BackHandler, Alert } from 'react-native';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useLocalSearchParams, router, useNavigation } from 'expo-router';
 import { getCurrentProfile, getDocumentById, deleteDocumentById, moveDocumentToProfile, togglePaidStatus, updateDocumentIssuer, SavedDocument } from '../db/database';
 import { scheduleActiveSync } from '../sync/schedule';
 import { File } from 'expo-file-system';
@@ -26,6 +26,7 @@ export default function DetalhesScreen() {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const { setImageUri, setOcrText, setFields } = useDocument();
+  const navigation = useNavigation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [doc, setDoc] = useState<SavedDocument | null>(() => (id ? getDocumentById(id) : null));
   const [zoomVisible, setZoomVisible] = useState(false);
@@ -53,6 +54,14 @@ export default function DetalhesScreen() {
     
       return () => subscription.remove();
   }, [zoomVisible, payModalVisible, deleteVisible, reclassifyVisible, moveVisible]);
+
+  // Recarrega o documento ao voltar do editor (revisao).
+  // Sem isso, o useState inicializa uma vez e nunca mais le do banco.
+  useEffect(() => {
+    return navigation.addListener('focus', () => {
+      if (id) setDoc(getDocumentById(id));
+    });
+  }, [navigation, id]);
 
   if (!doc) return null;
 

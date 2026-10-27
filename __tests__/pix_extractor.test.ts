@@ -73,4 +73,28 @@ describe('Extrator de PIX', () => {
     expect(result.dueDate).toBeNull();
     expect(result.referenceMonth).toBeNull();
   });
+
+  it('deve extrair paymentDate e paymentTime do comprovante', async () => {
+    const result = await extractFields(PIX_BRADESCO);
+    expect(result.paymentDate).toBe('2026-10-23');
+    expect(result.paymentTime).toBe('21:09:30');
+  });
+
+  it('nao captura o pagador quando Nome vem com dois-pontos', async () => {
+    const text = `
+      Comprovante de transferencia Pix
+      Data: 23/10/2026 - 21:09:30
+      Dados de quem recebeu
+      Nome: Chaves Burguers Sao Pedro
+      CPF/CNPJ: 34.608.704/0001-63
+      Valor: R$ 47,50
+      Dados de quem fez a transacao
+      Nome: ANA LUCIA LIMA XAVIER
+      CPF: 123.456.789-00
+    `;
+    const result = await extractFields(text);
+    expect(result.issuer).toBe('Chaves Burguers Sao Pedro');
+    expect(result.cnpj).toBe('34608704000163');
+    expect(result.cpf).toBeNull();
+  });
 });

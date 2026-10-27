@@ -299,8 +299,18 @@ function extractIssuerFromBeneficiary(text: string): string | null {
   }
 
   const text = cleanText(textInput);
-  // Logica especifica para PIX
-  if (text.includes('Comprovante de transferencia Pix') || text.includes('Dados de quem recebeu')) {
+  // =====================================================================
+  // PIX - Comprovante de transferencia Pix
+  // Bloco auto-contido. Nao entra em conflito com Boleto porque
+  // so dispara em indicadores fortes e retorna cedo.
+  // =====================================================================
+  const isPixReceipt =
+    /Comprovante de transfer.ncia Pix/i.test(text) ||
+    /Comprovante de Pix/i.test(text) ||
+    /Dados de quem recebeu/i.test(text) ||
+    /Dados de quem (?:enviou|fez)/i.test(text);
+
+  if (isPixReceipt) {
     const r: ExtractedFields = {
       documentType: 'PIX',
       issuer: null,
@@ -310,20 +320,58 @@ function extractIssuerFromBeneficiary(text: string): string | null {
       totalAmountCents: null,
       dueDate: null,
       boletoLine: null,
+      paymentDate: null,
+      paymentTime: null,
     };
 
-    const nameMatch = text.match(/Dados de quem recebeu[\s\S]*?Nome\s+([\s\S]*?)(?=CPF\/CNPJ|CPF|CNPJ)/i);
-    if (nameMatch) r.issuer = nameMatch[1].trim();
+    // 1) Nome do RECEBEDOR - ancorado em 'Dados de quem recebeu'.
+    //    Aceita 'Nome:', 'Nome ', 'Nome\n' (cleanText ja virou espaco).
+    //    Fatia o bloco em 'Dados de quem (enviou|fez)' para nunca pegar o pagador.
+    const receiverMatch = text.match(/Dados de quem recebeu([\s\S]{0,800})/i);
+    let receiverBlock = receiverMatch ? receiverMatch[1] : '';
+    const senderIdx = receiverBlock.search(/Dados de quem (?:enviou|fez)/i);
+    if (senderIdx >= 0) receiverBlock = receiverBlock.slice(0, senderIdx);
 
-    const docMatch = text.match(/CPF\/CNPJ\s*([\d\.\-\/]+)/i);
-    if (docMatch) {
-      const docClean = docMatch[1].replace(/\D/g, '');
-      if (docClean.length === 14) r.cnpj = docClean;
-      if (docClean.length === 11) r.cpf = docClean;
+    if (receiverBlock) {
+      const nameMatch = receiverBlock.match(
+        /\bNome\s*:?\s*(\S.{1,60}?)(?=\s*(?:CPF|CNPJ|Chave\s*Pix|Institui|Ag[.\s]|Conta\b|Valor|R\$|$))/i
+      );
+      if (nameMatch) {
+        r.issuer = nameMatch[1].trim().replace(/\s+/g, ' ');
+      }
+
+      // 2) CPF/CNPJ do recebedor (so dentro do bloco do recebedor)
+      const docMatch = receiverBlock.match(/(?:CPF\s*\/?\s*CNPJ|CPF|CNPJ)\s*:?\s*([\d.\-\/]+)/i);
+      if (docMatch) {
+        const docClean = docMatch[1].replace(/\D/g, '');
+        if (docClean.length === 14) r.cnpj = docClean;
+        else if (docClean.length === 11) r.cpf = docClean;
+      }
     }
 
-    const valMatch = text.match(/Valor:\s*R\$\s*([\d\.,]+)/i);
-    if (valMatch) r.totalAmountCents = parseToCents(valMatch[1]);
+    // 3) Valor - prioriza 'Valor: R$ X,XX', cai no ultimo decimal se falhar
+    const valMatch = text.match(/Valor\s*:?\s*R\$\s*([\d.]+,\d{2})/i);
+    if (valMatch) {
+      r.totalAmountCents = parseToCents(valMatch[1]);
+    } else {
+      const decimals = text.match(/(\d{1,3}(?:\.\d{3})*,\d{2})/g);
+      if (decimals && decimals.length > 0) {
+        r.totalAmountCents = parseToCents(decimals[decimals.length - 1]);
+      }
+    }
+
+    // 4) Data + hora do comprovante
+    const dtMatch = text.match(
+      /(?:Data|Comprovante)[^\d]{0,80}?(\d{2})[\/\-.](\d{2})[\/\-.](\d{4})(?:[^\d]{0,5}(\d{2}):(\d{2})(?::(\d{2}))?)?/i
+    ) || text.match(
+      /(\d{2})[\/\-.](\d{2})[\/\-.](\d{4})[^\d]{0,5}(\d{2}):(\d{2})(?::(\d{2}))?/
+    );
+    if (dtMatch) {
+      r.paymentDate = `${dtMatch[3]}-${dtMatch[2]}-${dtMatch[1]}`;
+      if (dtMatch[4] && dtMatch[5]) {
+        r.paymentTime = `${dtMatch[4]}:${dtMatch[5]}${dtMatch[6] ? ':' + dtMatch[6] : ''}`;
+      }
+    }
 
     return r;
   }

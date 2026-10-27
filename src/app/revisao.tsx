@@ -44,8 +44,8 @@ export default function RevisaoScreen() {
   const [editCpf, setEditCpf] = useState('');
   const [editDate, setEditDate] = useState('');
   const [editValue, setEditValue] = useState('');
-  const [editPaymentDate, setEditPaymentDate] = useState('');
-  const [editObservacao, setEditObservacao] = useState('');
+  const [editPaymentDate, setEditPaymentDate] = useState(isoToBR(initialPayDate));
+  const [editObservacao, setEditObservacao] = useState(initialObs || '');
   const [reclassifyVisible, setReclassifyVisible] = useState(false);
 
   useEffect(() => {
@@ -86,8 +86,16 @@ export default function RevisaoScreen() {
           setEditReference(extracted.referenceMonth || '');
           setEditCnpj(extracted.cnpj || '');
           setEditCpf(extracted.cpf || '');
-          setEditDate(isoToBR(extracted.dueDate));
           setEditValue(centsToDecimal(extracted.totalAmountCents));
+
+          if (extracted.documentType === 'PIX') {
+            setEditDate('');
+            if (!editId) {
+              setEditPaymentDate(isoToBR(extracted.paymentDate));
+            }
+          } else {
+            setEditDate(isoToBR(extracted.dueDate));
+          }
         }
       } catch (error) {
         if (isMounted) {
@@ -106,9 +114,11 @@ export default function RevisaoScreen() {
     return () => {
       isMounted = false;
     };
-  }, [imageUri, setOcrText, setFields]);
+  }, [imageUri, setOcrText, setFields, editId]);
 
   if (!imageUri) return null;
+
+  const isPix = fields?.documentType === 'PIX';
 
   const onCancel = async () => {
     try {
@@ -154,11 +164,11 @@ export default function RevisaoScreen() {
     try {
       let savedId: string;
       if (editId) {
-        updateDocument(editId, imageUri!, ocrText || '', fields);
+        updateDocument(editId, imageUri!, ocrText || '', finalFields, paymentDateIso, editObservacao || null);
         savedId = editId;
         setIsSuccessModalVisible(true);
       } else {
-        savedId = saveDocument(imageUri!, ocrText || '', fields);
+        savedId = saveDocument(imageUri!, ocrText || '', finalFields, paymentDateIso, editObservacao || null);
       }
       scheduleActiveSync();
       
@@ -244,27 +254,63 @@ export default function RevisaoScreen() {
             <Text style={styles.valueText}>{fields?.documentType || 'DESCONHECIDO'}</Text>
 
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, marginBottom: 4 }}>
-              <Text style={styles.label}>Emissor</Text>
-              <Pressable onPress={() => setReclassifyVisible(true)}>
-                <Text style={{ color: theme.colors.primary, fontSize: 12, fontFamily: theme.fonts.bold }}>Reclassificar e Aprender</Text>
-              </Pressable>
+              <Text style={styles.label}>{isPix ? 'Recebedor' : 'Emissor'}</Text>
+              {!isPix && (
+                <Pressable onPress={() => setReclassifyVisible(true)}>
+                  <Text style={{ color: theme.colors.primary, fontSize: 12, fontFamily: theme.fonts.bold }}>Reclassificar e Aprender</Text>
+                </Pressable>
+              )}
             </View>
             <TextInput style={styles.input} value={editIssuer} onChangeText={setEditIssuer} placeholder="Nao encontrado" />
 
-            <Text style={styles.label}>Observação (Ex: 10/2026)</Text>
-            <TextInput style={styles.input} value={editReference} onChangeText={setEditReference} placeholder="Nao encontrado" />
+            {!isPix && (
+              <>
+                <Text style={styles.label}>Referencia (Ex: 10/2026)</Text>
+                <TextInput style={styles.input} value={editReference} onChangeText={setEditReference} placeholder="Nao encontrado" />
+              </>
+            )}
 
             <Text style={styles.label}>CNPJ</Text>
             <TextInput style={styles.input} value={editCnpj} onChangeText={setEditCnpj} keyboardType="numeric" placeholder="Nao encontrado" />
 
-            <Text style={styles.label}>Data de Vencimento (DD/MM/AAAA)</Text>
-            <TextInput style={styles.input} value={editDate} onChangeText={(t) => setEditDate(maskDateInput(t))} placeholder="DD/MM/AAAA" keyboardType="numeric" />
+            {isPix && editCpf ? (
+              <>
+                <Text style={styles.label}>CPF</Text>
+                <TextInput style={styles.input} value={editCpf} onChangeText={setEditCpf} keyboardType="numeric" placeholder="Nao encontrado" />
+              </>
+            ) : null}
+
+            {!isPix && (
+              <>
+                <Text style={styles.label}>Data de Vencimento (DD/MM/AAAA)</Text>
+                <TextInput style={styles.input} value={editDate} onChangeText={(t) => setEditDate(maskDateInput(t))} placeholder="DD/MM/AAAA" keyboardType="numeric" />
+              </>
+            )}
 
             <Text style={styles.label}>Valor Total (R$)</Text>
             <TextInput style={styles.input} value={editValue} onChangeText={setEditValue} keyboardType="numeric" placeholder="0,00" />
 
-            <Text style={styles.label}>Data de Pagamento (Opcional)</Text>
+            <Text style={styles.label}>
+              {isPix ? 'Data do Pagamento (DD/MM/AAAA)' : 'Data de Pagamento (Opcional)'}
+            </Text>
             <TextInput style={styles.input} value={editPaymentDate} onChangeText={(t) => setEditPaymentDate(maskDateInput(t))} placeholder="DD/MM/AAAA" keyboardType="numeric" />
+            {isPix && fields?.paymentTime ? (
+              <Text style={styles.helpText}>Hora do comprovante: {fields.paymentTime}</Text>
+            ) : null}
+
+            {isPix && (
+              <>
+                <Text style={styles.label}>Observacao</Text>
+                <TextInput
+                  style={[styles.input, { minHeight: 60 }]}
+                  value={editObservacao}
+                  onChangeText={setEditObservacao}
+                  placeholder="Anotacao livre"
+                  multiline
+                  textAlignVertical="top"
+                />
+              </>
+            )}
 
             <Text style={styles.sectionTitle}>Texto Completo (OCR)</Text>
             <TextInput
