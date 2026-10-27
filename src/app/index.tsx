@@ -140,8 +140,8 @@ export default function HomeScreen() {
           style={styles.buttonSecondary}
           onPress={() => router.push('/cadastro-manual')}
         >
-          <MaterialCommunityIcons name="calendar-plus" size={24} color={theme.colors.primary} />
-          <Text style={styles.buttonTextSecondary}>CADASTRAR CONTA SEM COMPROVANTE</Text>
+          <MaterialCommunityIcons name="clipboard-plus-outline" size={24} color={theme.colors.primary} />
+          <Text style={styles.buttonTextSecondary}>CADASTRAR CONTA</Text>
         </Pressable>
 
         <Pressable

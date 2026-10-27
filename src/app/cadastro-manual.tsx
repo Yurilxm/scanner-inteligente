@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { getDocumentById, saveDocument, updateDocument } from '../db/database';
 import { scheduleActiveSync } from '../sync/schedule';
-import { brDateToISO, centsToDecimal, isoToBR, maskDateInput } from '../utils/format';
+import { brDateToISO, centsToDecimal, isoToBR, maskCurrency, maskDateInput } from '../utils/format';
 import { parseBRLToCents } from '../utils/money';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -164,7 +164,7 @@ export default function CadastroManualScreen() {
           <TextInput
             style={styles.input}
             value={editValue}
-            onChangeText={setEditValue}
+            onChangeText={(t) => setEditValue(maskCurrency(t))}
             keyboardType="numeric"
             placeholder="0,00"
           />
@@ -243,7 +243,7 @@ const useStyles = makeStyles(theme => ({
   headerTitle: { fontSize: 20, fontFamily: theme.fonts.bold, color: theme.colors.primary, letterSpacing: 1 },
   formContainer: { padding: 16 },
   sectionTitle: { fontSize: 18, fontFamily: theme.fonts.bold, color: theme.colors.primary, marginTop: 8, marginBottom: 8 },
-  helpText: { fontSize: 13, fontFamily: theme.fonts.regular, color: theme.colors.textSecondary, marginBottom: 12, marginTop: -4 },
+  helpText: { fontSize: 13, fontFamily: theme.fonts.regular, color: theme.colors.textSecondary, marginBottom: 16, marginTop: 6 },
   label: { fontSize: 13, fontFamily: theme.fonts.medium, color: theme.colors.primary, marginTop: 12, marginBottom: 4 },
   input: {
     borderWidth: 1,

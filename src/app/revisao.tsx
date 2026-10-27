@@ -15,7 +15,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { extractFields } from '../utils/extractor';
 import { parseBRLToCents } from '../utils/money';
-import { brDateToISO, centsToDecimal, isoToBR, maskDateInput } from '../utils/format';
+import { brDateToISO, centsToDecimal, isoToBR, maskCurrency, maskDateInput } from '../utils/format';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ScannerBackground } from '../components/ScannerBackground';
@@ -288,7 +288,7 @@ export default function RevisaoScreen() {
             )}
 
             <Text style={styles.label}>Valor Total (R$)</Text>
-            <TextInput style={styles.input} value={editValue} onChangeText={setEditValue} keyboardType="numeric" placeholder="0,00" />
+            <TextInput style={styles.input} value={editValue} onChangeText={(t) => setEditValue(maskCurrency(t))} keyboardType="numeric" placeholder="0,00" />
 
             <Text style={styles.label}>
               {isPix ? 'Data do Pagamento (DD/MM/AAAA)' : 'Data de Pagamento (Opcional)'}

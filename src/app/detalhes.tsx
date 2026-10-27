@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import * as Clipboard from 'expo-clipboard';
 import { View, Text, Image, Pressable, ScrollView, Modal, TextInput, BackHandler, Alert } from 'react-native';
 import { useLocalSearchParams, router, useNavigation } from 'expo-router';
 import { getCurrentProfile, getDocumentById, deleteDocumentById, moveDocumentToProfile, togglePaidStatus, updateDocumentIssuer, SavedDocument } from '../db/database';
@@ -217,6 +218,21 @@ export default function DetalhesScreen() {
 
             <Text style={styles.label}>Observação</Text>
             <Text style={styles.value}>{doc.observacao || '-'}</Text>
+            {doc.pixKey ? (
+              <>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={styles.label}>Chave Pix</Text>
+                  <Pressable onPress={async () => {
+                    await Clipboard.setStringAsync(doc.pixKey || '');
+                    Alert.alert('Copiado!', 'A chave Pix foi copiada.');
+                  }}>
+                    <Text style={{ color: theme.colors.primary, fontSize: 13, fontFamily: theme.fonts.bold }}>COPIAR</Text>
+                  </Pressable>
+                </View>
+                <Text style={styles.value}>{doc.pixKey}</Text>
+              </>
+            ) : null}
+    
 
             <Text style={styles.label}>Valor Total</Text>
             <Text style={styles.value}>{formatBRL(doc.totalAmountCents) || '-'}</Text>

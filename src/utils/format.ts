@@ -74,3 +74,12 @@ export function maskDateInput(text: string): string {
   if (cleaned.length <= 4) return `${cleaned.slice(0, 2)}/${cleaned.slice(2)}`;
   return `${cleaned.slice(0, 2)}/${cleaned.slice(2, 4)}/${cleaned.slice(4, 8)}`;
 }
+
+// Mascara de digitacao para moeda: "10000" -> "100,00"
+// Limpa nao-digitos, limita o tamanho e formata em centavos.
+export function maskCurrency(text: string): string {
+  const clean = text.replace(/\D/g, '');
+  if (!clean) return '';
+  const limited = clean.slice(0, 11); // ate 999.999.999,99
+  return centsToDecimal(parseInt(limited, 10));
+}
