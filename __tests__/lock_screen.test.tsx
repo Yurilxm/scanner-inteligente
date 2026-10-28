@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, act } from '@testing-library/react-native';
+import { render, screen, act , waitFor} from '@testing-library/react-native';
 import RootLayout from '../src/app/_layout';
 import * as PerfilUtils from '../src/utils/perfil';
 import * as LocalAuth from 'expo-local-authentication';
@@ -80,7 +80,7 @@ describe('Tela de Bloqueio Global (RootLayout)', () => {
     await act(async () => { await render(<RootLayout />); });
 
     expect(screen.getByTestId('pinpad')).toBeTruthy();
-    expect(LocalAuth.authenticateAsync).toHaveBeenCalled();
+    await waitFor(() => expect(LocalAuth.authenticateAsync).toHaveBeenCalled());
   });
 
   it('a flag de picking image impede o bloqueio ao voltar do background', async () => {

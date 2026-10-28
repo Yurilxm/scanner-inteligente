@@ -34,7 +34,11 @@ export default function ContaScreen() {
         setProfiles(listProfiles());
         if (status.kind === 'signed-in' && status.identity === 'ready') {
           import('../sync/engine')
-            .then(engine => engine.adoptRemoteVaults())
+            .then(async engine => {
+              // Traz as gavetas da nuvem e forca o download das contas imediatamente
+              await engine.adoptRemoteVaults();
+              await engine.syncAllProfiles();
+            })
             .then(() => { if (active) setProfiles(listProfiles()); })
             .catch(e => console.warn('Gavetas da nuvem', e));
         }

@@ -57,22 +57,38 @@ export default function RootLayout() {
   // Lógica de Bloqueio Global
   const [isLocked, setIsLocked] = useState(needsAppPin);
 
+  const handleUnlockBio = useCallback(async () => {
+    try {
+      const res = await LocalAuthentication.authenticateAsync({ promptMessage: 'Desbloqueie o Control' });
+      if (res.success) setIsLocked(false);
+    } catch (e) {
+      console.warn('Falha na biometria', e);
+    }
+  }, []);
+
   useEffect(() => {
+    let lockTimeout: ReturnType<typeof setTimeout>;
     const sub = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'background' || nextAppState === 'inactive') {
-        if (!AppStateFlag.isPickingImage() && needsAppPin()) setIsLocked(true);
+        // Espera 2 segundos antes de trancar (evita trancar ao abrir teclado, camera ou modal)
+        lockTimeout = setTimeout(() => {
+          if (!AppStateFlag.isPickingImage() && needsAppPin()) setIsLocked(true);
+        }, 2000);
+      } else if (nextAppState === 'active') {
+        if (lockTimeout) clearTimeout(lockTimeout);
       }
     });
-    return () => sub.remove();
+    return () => { clearTimeout(lockTimeout); sub.remove(); };
   }, []);
 
   useEffect(() => {
     if (isLocked && appSetting('use_biometrics') === 'true') {
-      LocalAuthentication.authenticateAsync({ promptMessage: 'Desbloqueie o Control' })
-        .then((res: any) => { if (res.success) setIsLocked(false); })
-        .catch(() => {});
+      const timer = setTimeout(() => {
+        handleUnlockBio();
+      }, 0);
+      return () => clearTimeout(timer);
     }
-  }, [isLocked]);
+  }, [isLocked, handleUnlockBio]);
 
   useEffect(() => {
     SystemUI.setBackgroundColorAsync(theme.colors.background);
@@ -113,10 +129,7 @@ export default function RootLayout() {
                     {useBio && (
                       <Pressable 
                         style={{ backgroundColor: theme.colors.primary, padding: 16, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}
-                        onPress={() => {
-                          LocalAuthentication.authenticateAsync({ promptMessage: 'Desbloqueie o Control' })
-                            .then((res: any) => { if (res.success) setIsLocked(false); });
-                        }}
+                        onPress={handleUnlockBio}
                       >
                         <MaterialCommunityIcons name="fingerprint" size={24} color={theme.colors.background} />
                         <Text style={{ fontFamily: theme.fonts.bold, color: theme.colors.background }}>TENTAR NOVAMENTE</Text>

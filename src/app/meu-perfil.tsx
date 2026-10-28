@@ -135,8 +135,8 @@ export default function MeuPerfilScreen() {
               <View style={styles.pinHeader}>
                 <MaterialCommunityIcons name="dialpad" size={24} color={theme.colors.primary} />
                 <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={styles.pinTitle}>{perfil.hasPin ? 'PIN Ativado' : 'Sem PIN'}</Text>
-                  <Text style={styles.pinSubtitle}>{perfil.hasPin ? 'O Control pede o PIN ao abrir.' : 'Qualquer pessoa com seu celular abre o Control.'}</Text>
+                  <Text style={styles.pinTitle}>{perfil.hasPin ? 'PIN Configurado' : 'Sem PIN'}</Text>
+                  <Text style={styles.pinSubtitle}>{perfil.hasPin ? 'O Control pede o PIN ao abrir.' : 'Nenhum PIN definido.'}</Text>
                 </View>
               </View>
               <View style={styles.pinActions}>
@@ -165,8 +165,8 @@ export default function MeuPerfilScreen() {
               <View style={styles.pinHeader}>
                 <MaterialCommunityIcons name="fingerprint" size={24} color={theme.colors.primary} />
                 <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={styles.pinTitle}>{useBio ? 'Biometria Ativada' : 'Biometria Desativada'}</Text>
-                  <Text style={styles.pinSubtitle}>Use sua digital ou rosto para entrar.</Text>
+                  <Text style={styles.pinTitle}>{useBio ? 'Biometria Configurada' : 'Sem Biometria'}</Text>
+                  <Text style={styles.pinSubtitle}>{useBio ? 'Use sua digital ou rosto para entrar.' : 'Nenhuma biometria definida.'}</Text>
                 </View>
               </View>
               <View style={styles.pinActions}>

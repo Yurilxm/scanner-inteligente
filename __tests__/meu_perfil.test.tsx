@@ -24,7 +24,7 @@ describe('Meu Perfil - Segurança', () => {
 
     await render(<MeuPerfilScreen />);
     
-    expect(screen.getByText('Biometria Ativada')).toBeTruthy();
+    expect(screen.getByText('Biometria Configurada')).toBeTruthy();
     expect(screen.getByText('Definir PIN')).toBeTruthy();
     expect(screen.getByText('Remover Biometria')).toBeTruthy();
   });
@@ -35,7 +35,7 @@ describe('Meu Perfil - Segurança', () => {
 
     await render(<MeuPerfilScreen />);
     
-    expect(screen.getByText('PIN Ativado')).toBeTruthy();
+    expect(screen.getByText('PIN Configurado')).toBeTruthy();
     expect(screen.getByText('Trocar PIN')).toBeTruthy();
     expect(screen.getByText('Ativar Biometria')).toBeTruthy();
   });
@@ -47,7 +47,7 @@ describe('Meu Perfil - Segurança', () => {
     await render(<MeuPerfilScreen />);
     
     expect(screen.getByText('Sem PIN')).toBeTruthy();
-    expect(screen.getByText('Biometria Desativada')).toBeTruthy();
+    expect(screen.getByText('Sem Biometria')).toBeTruthy();
     expect(screen.getByText('Definir PIN')).toBeTruthy();
   });
 });

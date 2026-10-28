@@ -20,6 +20,7 @@ import { Profile, canEdit, canPay, listProfiles } from '../db/profiles';
 import { ProfileAvatar } from '../components/ProfileAvatar';
 import { activeProfileRole } from '../utils/profileManager';
 import { useDocument } from '../context/DocumentContext';
+import { CustomToast } from '../components/CustomToast';
 
 export default function DetalhesScreen() {
   const theme = useTheme();
@@ -30,6 +31,7 @@ export default function DetalhesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [doc, setDoc] = useState<SavedDocument | null>(() => (id ? getDocumentById(id) : null));
   const [zoomVisible, setZoomVisible] = useState(false);
+  const [toastMsg, setToastMsg] = useState('');
   const [deleteVisible, setDeleteVisible] = useState(false);
   const [payModalVisible, setPayModalVisible] = useState(false);
   const [payDateInput, setPayDateInput] = useState('');
@@ -74,7 +76,7 @@ export default function DetalhesScreen() {
     try {
       const mod = await import('expo-clipboard');
       await mod.setStringAsync(text);
-      Alert.alert('Copiado!', 'A chave Pix foi copiada.');
+      setToastMsg('A chave Pix foi copiada.');
     } catch {
       Alert.alert('Nao foi possivel copiar', 'Atualize o app (novo APK) para usar esta funcao.');
     }
@@ -371,6 +373,7 @@ export default function DetalhesScreen() {
         onConfirm={handleDelete}
         onCancel={() => setDeleteVisible(false)}
       />
+      {toastMsg ? <CustomToast message={toastMsg} type="success" onHide={() => setToastMsg('')} /> : null}
     </LinearGradient>
   );
 }
