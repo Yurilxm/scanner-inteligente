@@ -4,7 +4,7 @@ import * as SystemUI from 'expo-system-ui';
 import { Stack } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { View, Text, Pressable, AppState } from 'react-native';
+import { View, Text, Pressable, AppState, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts, Outfit_400Regular, Outfit_500Medium, Outfit_700Bold } from '@expo-google-fonts/outfit';
@@ -42,7 +42,7 @@ export default function RootLayout() {
   const [dbReady] = useState(initApp);
   const theme = useTheme();
   const styles = useStyles();
-  
+
   const [fontsLoaded] = useFonts({
     Outfit_400Regular,
     Outfit_500Medium,
@@ -54,7 +54,6 @@ export default function RootLayout() {
   const [splashVisible, setSplashVisible] = useState(true);
   const hideSplash = useCallback(() => setSplashVisible(false), []);
 
-  // Lógica de Bloqueio Global
   const [isLocked, setIsLocked] = useState(needsAppPin);
 
   const handleUnlockBio = useCallback(async () => {
@@ -68,8 +67,10 @@ export default function RootLayout() {
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (nextAppState) => {
-      // Se o app foi para segundo plano/minimizado e nao e a camera/galeria, bloqueia NA HORA.
-      if ((nextAppState === 'background' || nextAppState === 'inactive') && !AppStateFlag.isPickingImage()) {
+      // Ignora se estiver pegando imagem ou pedindo permissao de notificacao
+      const isBusy = AppStateFlag.isPickingImage() || AppStateFlag.isRequestingPermission();
+      
+      if ((nextAppState === 'background' || nextAppState === 'inactive') && !isBusy) {
         if (needsAppPin()) setIsLocked(true);
       }
     });
@@ -93,53 +94,9 @@ export default function RootLayout() {
     return <View style={{ flex: 1, backgroundColor: theme.colors.background }} />;
   }
 
-  if (isLocked) {
-    const perfil = getPerfil();
-    const useBio = appSetting('use_biometrics') === 'true';
-    const hasPin = perfil.hasPin;
-
-    return (
-      <GestureHandlerRootView style={{ flex: 1, backgroundColor: theme.colors.background }}>
-        <SafeAreaProvider>
-          <LinearGradient colors={[theme.colors.background, theme.colors.backgroundGradient]} style={{ flex: 1 }}>
-            <ScannerBackground />
-            <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom', 'left', 'right']}>
-              <View style={styles.lockContent}>
-                <ProfileAvatar name={perfil.name} color={perfil.color} icon={perfil.icon} photoUri={perfil.photoUri} size={88} />
-                {hasPin ? (
-                  <PinPad
-                    mode="enter"
-                    title={perfil.name}
-                    subtitle="Digite o PIN para abrir o Control"
-                    color={perfil.color}
-                    onVerify={pin => {
-                      const error = tryUnlockApp(pin);
-                      if (!error) setIsLocked(false);
-                      return error;
-                    }}
-                  />
-                ) : (
-                  <View style={{ alignItems: 'center', marginTop: 24 }}>
-                    <Text style={{ fontFamily: theme.fonts.bold, fontSize: 20, color: theme.colors.text, marginBottom: 8 }}>App Bloqueado</Text>
-                    {useBio && (
-                      <Pressable 
-                        style={{ backgroundColor: theme.colors.primary, padding: 16, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}
-                        onPress={handleUnlockBio}
-                      >
-                        <MaterialCommunityIcons name="fingerprint" size={24} color={theme.colors.background} />
-                        <Text style={{ fontFamily: theme.fonts.bold, color: theme.colors.background }}>TENTAR NOVAMENTE</Text>
-                      </Pressable>
-                    )}
-                  </View>
-                )}
-              </View>
-            </SafeAreaView>
-          </LinearGradient>
-        </SafeAreaProvider>
-        {splashVisible && <AnimatedSplash ready={ready} onFinish={hideSplash} />}
-      </GestureHandlerRootView>
-    );
-  }
+  const perfil = getPerfil();
+  const useBio = appSetting('use_biometrics') === 'true';
+  const hasPin = perfil.hasPin;
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: theme.colors.background }}>
@@ -167,6 +124,46 @@ export default function RootLayout() {
             <Stack.Screen name="meu-perfil" />
           </Stack>
         </DocumentProvider>
+
+        {/* OVERLAY DE BLOQUEIO - Fica por cima sem desmontar o app */}
+        {isLocked && (
+          <View style={[StyleSheet.absoluteFill, { zIndex: 9999 }]}>
+            <LinearGradient colors={[theme.colors.background, theme.colors.backgroundGradient]} style={{ flex: 1 }}>
+              <ScannerBackground />
+              <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom', 'left', 'right']}>
+                <View style={styles.lockContent}>
+                  <ProfileAvatar name={perfil.name} color={perfil.color} icon={perfil.icon} photoUri={perfil.photoUri} size={88} />
+                  {hasPin ? (
+                    <PinPad
+                      mode="enter"
+                      title={perfil.name}
+                      subtitle="Digite o PIN para abrir o Control"
+                      color={perfil.color}
+                      onVerify={pin => {
+                        const error = tryUnlockApp(pin);
+                        if (!error) setIsLocked(false);
+                        return error;
+                      }}
+                    />
+                  ) : (
+                    <View style={{ alignItems: 'center', marginTop: 24 }}>
+                      <Text style={{ fontFamily: theme.fonts.bold, fontSize: 20, color: theme.colors.text, marginBottom: 8 }}>App Bloqueado</Text>
+                      {useBio && (
+                        <Pressable
+                          style={{ backgroundColor: theme.colors.primary, padding: 16, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                          onPress={handleUnlockBio}
+                        >
+                          <MaterialCommunityIcons name="fingerprint" size={24} color={theme.colors.background} />
+                          <Text style={{ fontFamily: theme.fonts.bold, color: theme.colors.background }}>TENTAR NOVAMENTE</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  )}
+                </View>
+              </SafeAreaView>
+            </LinearGradient>
+          </View>
+        )}
       </SafeAreaProvider>
       {splashVisible && <AnimatedSplash ready={ready} onFinish={hideSplash} />}
     </GestureHandlerRootView>
@@ -175,7 +172,7 @@ export default function RootLayout() {
 
 const useStyles = () => {
   const theme = useTheme();
-  return {
-    lockContent: { flex: 1, alignItems: 'center' as const, justifyContent: 'center' as const, padding: 24, gap: 8 },
-  };
+  return StyleSheet.create({
+    lockContent: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 8 },
+  });
 };

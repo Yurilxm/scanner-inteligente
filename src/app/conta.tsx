@@ -246,8 +246,11 @@ export default function ContaScreen() {
               {screen.identity === 'needs-setup' && (
                 <View style={[styles.card, { borderColor: theme.colors.warning }]}>
                   <MaterialCommunityIcons name="key-variant" size={28} color={theme.colors.warning} />
-                  <Text style={styles.cardTitle}>Falta criar sua frase de recuperação</Text>
-                  <Text style={styles.text}>É ela que protege e recupera seus dados. Dá para salvar direto na sua conta Google.</Text>
+                  <Text style={styles.cardTitle}>Quase lá! Falta criar sua frase</Text>
+                  <Text style={styles.text}>
+                    Para baixar as contas que já existem na nuvem (ou enviar as que você criou aqui), o app precisa criar a chave de criptografia.
+                    Clique abaixo para gerar a frase de 12 palavras.
+                  </Text>
                   <Pressable style={styles.primaryButton} onPress={() => router.push({ pathname: '/frase', params: { modo: 'criar' } })}>
                     <Text style={styles.primaryText}>Criar frase de recuperação</Text>
                   </Pressable>

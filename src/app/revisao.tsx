@@ -23,6 +23,7 @@ import { RadarLoader } from '../components/RadarLoader';
 import { makeStyles, useTheme } from '../theme';
 import { CustomModal } from '../components/CustomModal';
 import { ReclassifyModal } from '../components/ReclassifyModal';
+import { AppStateFlag } from '../utils/AppStateFlag';
 import { requestNotificationPermissions, scheduleDueDateReminder } from '../utils/notifications';
 
 export default function RevisaoScreen() {
@@ -62,7 +63,11 @@ export default function RevisaoScreen() {
 
   useEffect(() => {
     if (!imageUri) return;
-    requestNotificationPermissions();
+    // Evita que o prompt de permissao do Android dispare a tela de bloqueio
+    AppStateFlag.setRequestingPermission(true);
+    requestNotificationPermissions().finally(() => {
+      setTimeout(() => AppStateFlag.setRequestingPermission(false), 1000);
+    });
 
     let isMounted = true;
 
