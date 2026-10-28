@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -35,8 +35,16 @@ export default function ContaScreen() {
         if (status.kind === 'signed-in' && status.identity === 'ready') {
           import('../sync/engine')
             .then(async engine => {
-              // Traz as gavetas da nuvem e forca o download das contas imediatamente
+              // Traz as gavetas da nuvem
               await engine.adoptRemoteVaults();
+              // Se criou conta antes de logar, envia a gaveta local "Minhas contas" para a nuvem
+              const localProfiles = listProfiles();
+              for (const p of localProfiles) {
+                if (!p.vaultId) {
+                  await engine.enableProfileSync(p.id).catch(e => console.warn('Falha ao enviar gaveta local', e));
+                }
+              }
+              // Baixa as contas de todas as gavetas
               await engine.syncAllProfiles();
             })
             .then(() => { if (active) setProfiles(listProfiles()); })
@@ -56,6 +64,13 @@ export default function ContaScreen() {
   }, []);
 
   useFocusEffect(refresh);
+
+  // Sempre que o status mudar (ex: criou a frase de recuperacao), roda o refresh para sincronizar
+  useEffect(() => {
+    if (screen.kind === 'signed-in' && screen.identity === 'ready') {
+      refresh();
+    }
+  }, [screen, refresh]);
 
   const handleLogin = async () => {
     if (updateRequired) {

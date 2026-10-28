@@ -23,11 +23,15 @@ export default function AuthCallbackScreen() {
   useEffect(() => {
     if (!code || failure) return;
     let active = true;
-    loadAccount()
-      .then(account => account.finishLogin(code))
-      .then(() => { if (active) leave(); })
-      .catch(e => { if (active) setFailure(e instanceof Error ? e.message : String(e)); });
-    return () => { active = false; };
+    // Pequeno delay para garantir que o SQLite e o Supabase estao prontos na inicializacao a frio
+    const timer = setTimeout(() => {
+      loadAccount()
+        .then(account => account.finishLogin(code))
+        .then(() => { if (active) leave(); })
+        .catch(e => { if (active) setFailure(e instanceof Error ? e.message : String(e)); });
+    }, 800);
+    
+    return () => { active = false; clearTimeout(timer); };
   }, [code, failure]);
 
   // Sem código e sem erro (link aberto à toa): só volta

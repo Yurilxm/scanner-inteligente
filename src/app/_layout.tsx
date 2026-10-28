@@ -67,18 +67,13 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    let lockTimeout: ReturnType<typeof setTimeout>;
     const sub = AppState.addEventListener('change', (nextAppState) => {
-      if (nextAppState === 'background' || nextAppState === 'inactive') {
-        // Espera 2 segundos antes de trancar (evita trancar ao abrir teclado, camera ou modal)
-        lockTimeout = setTimeout(() => {
-          if (!AppStateFlag.isPickingImage() && needsAppPin()) setIsLocked(true);
-        }, 2000);
-      } else if (nextAppState === 'active') {
-        if (lockTimeout) clearTimeout(lockTimeout);
+      // Se o app foi para segundo plano/minimizado e nao e a camera/galeria, bloqueia NA HORA.
+      if ((nextAppState === 'background' || nextAppState === 'inactive') && !AppStateFlag.isPickingImage()) {
+        if (needsAppPin()) setIsLocked(true);
       }
     });
-    return () => { clearTimeout(lockTimeout); sub.remove(); };
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {

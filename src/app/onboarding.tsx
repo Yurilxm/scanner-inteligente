@@ -54,10 +54,14 @@ export default function OnboardingScreen() {
     setStep('auth_choice');
   };
 
-  const finishSetup = (pinToSave: string) => {
-    setAppPin(pinToSave);
+  const finishSetup = (pinToSave: string | null) => {
+    if (pinToSave) {
+      setAppPin(pinToSave);
+    } else {
+      setAppPin(null); // Garante que não crie PIN fantasma
+    }
     const gavetaId = createProfile({ name: 'Minhas contas', color: color, icon: 'briefcase' });
-    changeProfile(gavetaId); // CORREÃ‡ÃƒO: Ativa a gaveta no banco de dados
+    changeProfile(gavetaId);
     router.replace('/');
   };
 
@@ -71,7 +75,7 @@ export default function OnboardingScreen() {
     const auth = await LocalAuthentication.authenticateAsync({ promptMessage: 'Configure sua biometria' });
     if (auth.success) {
       setAppSettingValue('use_biometrics', 'true');
-      finishSetup('1234'); // PIN de fallback
+      finishSetup(null); // Não cria PIN fantasma
     }
   };
 
@@ -86,12 +90,12 @@ export default function OnboardingScreen() {
       <ScannerBackground />
       <SafeAreaView style={styles.safeArea}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, justifyContent: 'center' }}>
-          
+
           {step === 'login' && (
             <View style={styles.box}>
               <MaterialCommunityIcons name="radar" size={80} color={theme.colors.primary} style={{ marginBottom: 20 }} />
               <Text style={styles.title}>BEM-VINDO AO CONTROL</Text>
-              <Text style={styles.subtitle}>Para comeÃ§ar, conecte sua conta Google para manter seus dados seguros na nuvem.</Text>
+              <Text style={styles.subtitle}>Para começar, conecte sua conta Google para manter seus dados seguros na nuvem.</Text>
               <Pressable style={styles.btnPrimary} onPress={handleLogin} disabled={loading}>
                 <MaterialCommunityIcons name="google" size={24} color={theme.colors.background} />
                 <Text style={styles.btnText}>{loading ? 'CONECTANDO...' : 'ENTRAR COM GOOGLE'}</Text>
@@ -102,7 +106,7 @@ export default function OnboardingScreen() {
           {step === 'profile' && (
             <ScrollView style={styles.box} contentContainerStyle={{ paddingBottom: 24 }}>
               <Text style={styles.title}>COMO PODEMOS TE CHAMAR?</Text>
-              
+
               <View style={{ alignItems: 'center', marginBottom: 20 }}>
                 <ProfileAvatar name={name || '?'} color={color} icon={icon} photoUri={photoUri} size={100} />
                 <Pressable onPress={pickImage} style={{ marginTop: 8 }}>
@@ -111,7 +115,7 @@ export default function OnboardingScreen() {
               </View>
 
               <TextInput style={styles.input} placeholder="Seu nome" placeholderTextColor={theme.colors.textSecondary} value={name} onChangeText={setName} />
-              
+
               <Text style={styles.label}>Escolha uma cor:</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
                   {PROFILE_COLORS.map(c => (
@@ -138,7 +142,7 @@ export default function OnboardingScreen() {
             <View style={styles.box}>
               <Text style={styles.title}>PROTEJA SEU APP</Text>
               <Text style={styles.subtitle}>Como você quer bloquear o Control quando não estiver usando?</Text>
-              
+
               <Pressable style={[styles.btnSecondary, { marginBottom: 16 }]} onPress={handleBiometrics}>
                 <MaterialCommunityIcons name="fingerprint" size={32} color={theme.colors.primary} />
                 <Text style={styles.btnTextSecondary}>USAR BIOMETRIA</Text>
@@ -154,7 +158,7 @@ export default function OnboardingScreen() {
           {step === 'pin' && (
             <View style={styles.box}>
               <Text style={styles.title}>CRIE SEU PIN DE SEGURANÇA</Text>
-              <Text style={styles.subtitle}>Este PIN será pedido toda vez que vocÃª abrir o Control.</Text>
+              <Text style={styles.subtitle}>Este PIN será pedido toda vez que você abrir o Control.</Text>
               <TextInput style={styles.input} placeholder="Digite de 4 a 6 números" placeholderTextColor={theme.colors.textSecondary} value={pin} onChangeText={setPin} keyboardType="number-pad" secureTextEntry maxLength={6} autoFocus />
               <Pressable style={styles.btnPrimary} onPress={handlePin}>
                 <Text style={styles.btnText}>FINALIZAR E ENTRAR</Text>
