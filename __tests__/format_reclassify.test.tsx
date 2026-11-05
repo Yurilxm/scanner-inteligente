@@ -15,6 +15,10 @@ import { ReclassifyModal, suggestKeyword } from '../src/components/ReclassifyMod
 
 const mockDb = (require('expo-sqlite') as any).__dbMock;
 
+// Timeout aumentado: na suite completa, o ambiente fica lento e esse
+// arquivo tem um teste que leva ~2.3s isolado mas cruza os 5s do padrao.
+jest.setTimeout(15000);
+
 describe('format', () => {
   it('formata centavos', () => {
     expect(formatBRL(123456)).toBe('R$ 1.234,56');

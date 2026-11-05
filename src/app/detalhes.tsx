@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { View, Text, Image, Pressable, ScrollView, Modal, TextInput, BackHandler, Alert } from 'react-native';
 import { useLocalSearchParams, router, useNavigation } from 'expo-router';
-import { getCurrentProfile, getDocumentById, deleteDocumentById, moveDocumentToProfile, togglePaidStatus, updateDocumentIssuer, duplicateDocumentForNextMonth, SavedDocument } from '../db/database';
+import { getCurrentProfile, getDocumentById, deleteDocumentById, moveDocumentToProfile, togglePaidStatus, updateDocumentIssuer, duplicateDocumentForNextMonth, SavedDocument, updateDocument } from '../db/database';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { scheduleActiveSync } from '../sync/schedule';
 import { File } from 'expo-file-system';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -73,6 +75,23 @@ export default function DetalhesScreen() {
   // Lazy import: expo-clipboard e modulo NATIVO. Se o APK nao foi rebuildado
   // apos instalar a dependencia, o import top-level crasharia o detalhes.
   // Aqui, so falha (com mensagem amigavel) se o usuario tocar em COPIAR.
+  const handleAddPhoto = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.5 });
+    if (result.canceled) return;
+    try {
+      const newUri = FileSystem.documentDirectory + 'fotos/' + Date.now() + '.jpg';
+      await FileSystem.makeDirectoryAsync(FileSystem.documentDirectory + 'fotos/', { intermediates: true });
+      await FileSystem.copyAsync({ from: result.assets[0].uri, to: newUri });
+      
+      // Atualiza no banco
+      updateDocument(doc.id, newUri, doc.ocrText || '', doc, doc.paymentDate, doc.observacao);
+      setDoc({ ...doc, imageUri: newUri });
+      setToastMsg('Foto adicionada!');
+    } catch (e) {
+      Alert.alert('Erro', 'Nao foi possivel salvar a foto.');
+    }
+  };
+
   const copyPixKey = async (text: string) => {
     try {
       const mod = await import('expo-clipboard');
@@ -136,7 +155,10 @@ export default function DetalhesScreen() {
   };
 
   const handleOpenPayModal = () => {
-    setPayDateInput(isoToBR(todayISO()));
+    // Se ja tem uma data de pagamento (ex: desmarcou e marcou de novo), mantem ela.
+    // Senao, usa hoje.
+    const initialDate = doc.paymentDate ? isoToBR(doc.paymentDate) : isoToBR(todayISO());
+    setPayDateInput(initialDate);
     setCreateNextMonth(false);
     setPayModalVisible(true);
   };
@@ -176,7 +198,8 @@ export default function DetalhesScreen() {
   const handleTogglePaid = () => {
     togglePaidStatus(doc.id, doc.isPaid);
     scheduleActiveSync();
-    updateDoc({ ...doc, isPaid: doc.isPaid === 1 ? 0 : 1, paymentDate: null });
+    // Mantemos o paymentDate antigo no estado local para o handleOpenPayModal usar
+    updateDoc({ ...doc, isPaid: doc.isPaid === 1 ? 0 : 1 });
   };
 
   return (
@@ -229,7 +252,12 @@ export default function DetalhesScreen() {
               <Image source={{ uri: doc.imageUri }} style={styles.image} resizeMode="contain" />
               <Text style={styles.hint}>Toque na imagem para ampliar</Text>
             </Pressable>
-          ) : null}
+          ) : (
+            <Pressable style={styles.addPhotoBtn} onPress={handleAddPhoto}>
+              <MaterialCommunityIcons name="camera-plus" size={32} color={theme.colors.primary} />
+              <Text style={styles.addPhotoText}>Adicionar Foto</Text>
+            </Pressable>
+          )}
 
           <View style={styles.infoBox}>
             <Text style={styles.label}>Tipo de Documento</Text>
@@ -429,6 +457,8 @@ const useStyles = makeStyles(theme => ({
   headerTitle: { fontSize: 20, fontFamily: theme.fonts.bold, color: theme.colors.primary, letterSpacing: 1 },
   content: { padding: 16, marginTop: 0 },
   image: { width: '100%', height: 250, borderRadius: 12, backgroundColor: '#000' },
+  addPhotoBtn: { height: 150, borderWidth: 1, borderColor: theme.colors.primary, borderRadius: 12, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', marginBottom: 16, backgroundColor: theme.colors.panel },
+  addPhotoText: { color: theme.colors.primary, fontFamily: theme.fonts.bold, fontSize: 16, marginTop: 8 },
   hint: { textAlign: 'center', color: theme.colors.textSecondary, fontSize: 12, marginTop: 8, fontFamily: theme.fonts.regular },
   infoBox: { backgroundColor: theme.colors.panel, padding: 16, borderRadius: 12, marginTop: 16, borderWidth: 1, borderColor: theme.colors.border },
   label: { color: theme.colors.primary, fontSize: 13, fontFamily: theme.fonts.medium, marginTop: 8 },

@@ -5,7 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ZoomableImage } from '../components/ZoomableImage';
 import { router, useLocalSearchParams } from 'expo-router';
 import { File } from 'expo-file-system';
-import { saveDocument, updateDocument, getLearnedCategories } from '../db/database';
+import { saveDocument, updateDocument, getLearnedCategories, duplicateDocumentForNextMonth, getDocumentById } from '../db/database';
 import { appSetting } from '../utils/perfil';
 import { scheduleActiveSync } from '../sync/schedule';
 import { useDocument } from '../context/DocumentContext';
@@ -47,6 +47,7 @@ export default function RevisaoScreen() {
   const [editValue, setEditValue] = useState('');
   const [editPaymentDate, setEditPaymentDate] = useState(isoToBR(initialPayDate));
   const [editObservacao, setEditObservacao] = useState(initialObs || '');
+  const [createNextMonth, setCreateNextMonth] = useState(false);
   const [reclassifyVisible, setReclassifyVisible] = useState(false);
 
   useEffect(() => {
@@ -182,6 +183,15 @@ export default function RevisaoScreen() {
         if (!paymentDateIso && finalFields.dueDate && finalFields.issuer) {
           await scheduleDueDateReminder(savedId, finalFields.issuer, finalFields.dueDate);
         }
+        if (createNextMonth && paymentDateIso) {
+          const newId = duplicateDocumentForNextMonth(savedId);
+          if (newId) {
+            const clone = getDocumentById(newId);
+            if (clone?.dueDate && clone.issuer) {
+              await scheduleDueDateReminder(newId, clone.issuer, clone.dueDate).catch(e => console.warn('Lembrete do clone', e));
+            }
+          }
+        }
       } catch (e) {
         console.warn("Erro ao agendar notificacao", e);
       }
@@ -304,6 +314,32 @@ export default function RevisaoScreen() {
               <Pressable style={[styles.buttonSecondary, { flex: 1, paddingVertical: 10 }]} onPress={() => setEditPaymentDate(isoToBR(offsetDateISO(1)))}><Text style={[styles.buttonTextSecondary, { fontSize: 14 }]}>Amanhã</Text></Pressable>
             </View>
             <TextInput style={styles.input} value={editPaymentDate} onChangeText={(t) => setEditPaymentDate(maskDateInput(t))} placeholder="DD/MM/AAAA" keyboardType="numeric" />
+
+{/* Recorrencia: so aparece se preencheu data de pagamento e tem vencimento */}
+{editPaymentDate.trim() !== '' && (editDate.trim() !== '' || fields?.dueDate) ? (
+  <Pressable
+    onPress={() => setCreateNextMonth(!createNextMonth)}
+    style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16, marginTop: 8 }}
+  >
+    <MaterialCommunityIcons
+      name={createNextMonth ? 'checkbox-marked' : 'checkbox-blank-outline'}
+      size={24}
+      color={theme.colors.primary}
+    />
+    <Text style={{ color: theme.colors.text, fontFamily: theme.fonts.regular, fontSize: 14, flex: 1 }}>
+      Criar conta do proximo mes (vencimento {(() => {
+        const d = editDate.trim() ? brDateToISO(editDate) : fields?.dueDate;
+        if (!d) return '...';
+        const [y, m, day] = d.split('-').map(Number);
+        let nm = m + 1, ny = y;
+        if (nm > 12) { nm = 1; ny += 1; }
+        const dim = new Date(ny, nm, 0).getDate();
+        const nd = Math.min(day, dim);
+        return `${String(nd).padStart(2, '0')}/${String(nm).padStart(2, '0')}/${ny}`;
+      })()})
+    </Text>
+  </Pressable>
+) : null}
             {isPix && fields?.paymentTime ? (
               <Text style={styles.helpText}>Hora do comprovante: {fields.paymentTime}</Text>
             ) : null}

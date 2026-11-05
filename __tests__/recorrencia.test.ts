@@ -1,9 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import { duplicateDocumentForNextMonth } from '../src/db/database';
 
-// Mock do SQLite com um objeto ÚNICO retornado em toda chamada.
-// Isso evita o problema de hoisting do jest.mock (as const do mock não são
-// hoisted; usar .mockReturnValue deixa o objeto disponível pra acessar de fora).
 jest.mock('expo-sqlite', () => ({
   openDatabaseSync: jest.fn().mockReturnValue({
     closeSync: jest.fn(),
@@ -14,12 +11,10 @@ jest.mock('expo-sqlite', () => ({
   }),
 }));
 
-// Acessa o MESMO objeto que o database.ts usa internamente
 const mockDb = (SQLite.openDatabaseSync as jest.Mock)();
 const mockGetFirstSync = mockDb.getFirstSync as jest.Mock;
 const mockRunSync = mockDb.runSync as jest.Mock;
 
-// Helper: monta um SavedDocument fake pra cada teste
 function fakeDoc(overrides: Partial<any> = {}) {
   return {
     id: 'doc-original',
@@ -48,76 +43,108 @@ function fakeDoc(overrides: Partial<any> = {}) {
 // [11]=ocrText [12]=pixKey [13]=observacao [14]=isPaid [15]=paymentDate
 
 describe('Recorrencia - duplicateDocumentForNextMonth', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
+  beforeEach(() => jest.clearAllMocks());
+
+  describe('vencimento e referencia', () => {
+    it('mes comum: 10/11/2026 -> 10/12/2026', () => {
+      mockGetFirstSync.mockReturnValue(fakeDoc());
+      duplicateDocumentForNextMonth('doc-original');
+      const args = mockRunSync.mock.calls[0];
+      expect(args[9]).toBe('2026-12-10');
+      expect(args[5]).toBe('12/2026');
+    });
+
+    it('fevereiro nao bissexto: 31/01/2026 -> 28/02/2026', () => {
+      mockGetFirstSync.mockReturnValue(fakeDoc({ dueDate: '2026-01-31' }));
+      duplicateDocumentForNextMonth('doc-original');
+      const args = mockRunSync.mock.calls[0];
+      expect(args[9]).toBe('2026-02-28');
+      expect(args[5]).toBe('02/2026');
+    });
+
+    it('fevereiro bissexto: 31/01/2024 -> 29/02/2024', () => {
+      mockGetFirstSync.mockReturnValue(fakeDoc({ dueDate: '2024-01-31' }));
+      duplicateDocumentForNextMonth('doc-original');
+      const args = mockRunSync.mock.calls[0];
+      expect(args[9]).toBe('2024-02-29');
+    });
+
+    it('dezembro -> janeiro do ano seguinte: 10/12/2026 -> 10/01/2027', () => {
+      mockGetFirstSync.mockReturnValue(fakeDoc({ dueDate: '2026-12-10' }));
+      duplicateDocumentForNextMonth('doc-original');
+      const args = mockRunSync.mock.calls[0];
+      expect(args[9]).toBe('2027-01-10');
+      expect(args[5]).toBe('01/2027');
+    });
+
+    it('dia 15/03/2026 -> 15/04/2026 (mes que tem dia 31)', () => {
+      mockGetFirstSync.mockReturnValue(fakeDoc({ dueDate: '2026-03-15' }));
+      duplicateDocumentForNextMonth('doc-original');
+      const args = mockRunSync.mock.calls[0];
+      expect(args[9]).toBe('2026-04-15');
+    });
   });
 
-  it('cria copia com vencimento no mes seguinte (10/11 -> 10/12)', () => {
-    mockGetFirstSync.mockReturnValue(fakeDoc());
+  describe('dados preservados e limpos', () => {
+    it('limpa foto, ocr e boleto, preserva cnpj e pixKey (esboco)', () => {
+      mockGetFirstSync.mockReturnValue(fakeDoc({ pixKey: 'chave@gigamais.com' }));
+      duplicateDocumentForNextMonth('doc-original');
+      const args = mockRunSync.mock.calls[0];
+      expect(args[2]).toBe('');                    // imageUri LIMPO
+      expect(args[6]).toBe('07714104000107');      // cnpj PRESERVADO
+      expect(args[12]).toBe('chave@gigamais.com'); // pixKey PRESERVADO
+      expect(args[10]).toBeNull();                 // boletoLine LIMPO
+      expect(args[11]).toBeNull();                 // ocrText LIMPO
+    });
 
-    const newId = duplicateDocumentForNextMonth('doc-original');
+    it('cria com isPaid=0 e paymentDate=null (pendente)', () => {
+      mockGetFirstSync.mockReturnValue(fakeDoc());
+      duplicateDocumentForNextMonth('doc-original');
+      const args = mockRunSync.mock.calls[0];
+      expect(args[14]).toBe(0);
+      expect(args[15]).toBeNull();
+    });
 
-    expect(newId).not.toBeNull();
-    expect(typeof newId).toBe('string');
-    expect(mockRunSync).toHaveBeenCalledTimes(1);
+    it('preserva o issuer (mesmo emissor)', () => {
+      mockGetFirstSync.mockReturnValue(fakeDoc({ issuer: 'ENEL SP' }));
+      duplicateDocumentForNextMonth('doc-original');
+      const args = mockRunSync.mock.calls[0];
+      expect(args[4]).toBe('ENEL SP');
+    });
 
-    const args = mockRunSync.mock.calls[0];
-    expect(args[9]).toBe('2026-12-10');
-    expect(args[5]).toBe('12/2026');
-    expect(args[10]).toBeNull();
-    expect(args[11]).toBeNull();
-    expect(args[14]).toBe(0);
-    expect(args[15]).toBeNull();
+    it('preserva o totalAmountCents (valor sera corrigido depois)', () => {
+      mockGetFirstSync.mockReturnValue(fakeDoc({ totalAmountCents: 12345 }));
+      duplicateDocumentForNextMonth('doc-original');
+      const args = mockRunSync.mock.calls[0];
+      expect(args[8]).toBe(12345);
+    });
+
+    it('preserva o documentType', () => {
+      mockGetFirstSync.mockReturnValue(fakeDoc({ documentType: 'PIX' }));
+      duplicateDocumentForNextMonth('doc-original');
+      const args = mockRunSync.mock.calls[0];
+      expect(args[3]).toBe('PIX');
+    });
   });
 
-  it('fevereiro nao bissexto: 31/01 -> 28/02', () => {
-    mockGetFirstSync.mockReturnValue(fakeDoc({ dueDate: '2026-01-31' }));
+  describe('casos de erro', () => {
+    it('retorna null se a conta nao existe', () => {
+      mockGetFirstSync.mockReturnValue(null);
+      expect(duplicateDocumentForNextMonth('doc-inexistente')).toBeNull();
+      expect(mockRunSync).not.toHaveBeenCalled();
+    });
 
-    duplicateDocumentForNextMonth('doc-original');
+    it('retorna null se a conta nao tem vencimento', () => {
+      mockGetFirstSync.mockReturnValue(fakeDoc({ dueDate: null }));
+      expect(duplicateDocumentForNextMonth('doc-original')).toBeNull();
+      expect(mockRunSync).not.toHaveBeenCalled();
+    });
 
-    const args = mockRunSync.mock.calls[0];
-    expect(args[9]).toBe('2026-02-28');
-    expect(args[5]).toBe('02/2026');
-  });
-
-  it('dezembro -> janeiro do ano seguinte', () => {
-    mockGetFirstSync.mockReturnValue(fakeDoc({ dueDate: '2026-12-10' }));
-
-    duplicateDocumentForNextMonth('doc-original');
-
-    const args = mockRunSync.mock.calls[0];
-    expect(args[9]).toBe('2027-01-10');
-    expect(args[5]).toBe('01/2027');
-  });
-
-  it('retorna null se a conta nao existe', () => {
-    mockGetFirstSync.mockReturnValue(null);
-
-    const result = duplicateDocumentForNextMonth('doc-inexistente');
-
-    expect(result).toBeNull();
-    expect(mockRunSync).not.toHaveBeenCalled();
-  });
-
-  it('retorna null se a conta nao tem vencimento', () => {
-    mockGetFirstSync.mockReturnValue(fakeDoc({ dueDate: null }));
-
-    const result = duplicateDocumentForNextMonth('doc-original');
-
-    expect(result).toBeNull();
-    expect(mockRunSync).not.toHaveBeenCalled();
-  });
-
-  it('preserva foto, cnpj e pixKey, mas limpa boletoLine e ocrText', () => {
-    mockGetFirstSync.mockReturnValue(fakeDoc({ pixKey: 'chave@gigamais.com' }));
-
-    duplicateDocumentForNextMonth('doc-original');
-
-    const args = mockRunSync.mock.calls[0];
-    expect(args[2]).toBe('file://photo.jpg');
-    expect(args[6]).toBe('07714104000107');
-    expect(args[12]).toBe('chave@gigamais.com');
-    expect(args[10]).toBeNull();
-    expect(args[11]).toBeNull();
+    it('retorna string (id do clone) quando da certo', () => {
+      mockGetFirstSync.mockReturnValue(fakeDoc());
+      const id = duplicateDocumentForNextMonth('doc-original');
+      expect(typeof id).toBe('string');
+      expect(id).not.toBeNull();
+    });
   });
 });
