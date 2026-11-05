@@ -21,11 +21,11 @@ import { scheduleDueDateReminder } from '../src/utils/notifications';
 const mockSchedule = Notifications.scheduleNotificationAsync as jest.Mock;
 
 describe('scheduleDueDateReminder (janela de agendamento)', () => {
-  const baseNow = new Date('2026-10-27T01:34:00').getTime();
 
   beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-10-27T01:34:00'));
     jest.clearAllMocks();
-    jest.spyOn(Date, 'now').mockReturnValue(baseNow);
     mockAppSetting.mockImplementation((key: string) => {
       if (key === 'notifications_enabled') return 'true';
       if (key === 'notification_days_before') return '5';
@@ -34,7 +34,10 @@ describe('scheduleDueDateReminder (janela de agendamento)', () => {
     });
   });
 
-  afterEach(() => jest.restoreAllMocks());
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
 
   it('once com janela no futuro: agenda 1', async () => {
     // due 2026-11-30, 5 dias antes = 2026-11-25 > hoje (27/10)
@@ -85,7 +88,7 @@ describe('scheduleDueDateReminder (janela de agendamento)', () => {
   it('daily com todos os dias passados mas vencimento futuro: catch-up agenda 1', async () => {
     // Avanca "hoje" para 29/10 10:00, DEPOIS das 9h de todos os dias da janela
     // (25, 26, 27, 28, 29/10 as 9h ja passaram). Catch-up dispara 30/10 9h.
-    jest.spyOn(Date, 'now').mockReturnValue(new Date('2026-10-29T10:00:00').getTime());
+    jest.setSystemTime(new Date('2026-10-29T10:00:00'));
     mockAppSetting.mockImplementation((key: string) => {
       if (key === 'notifications_enabled') return 'true';
       if (key === 'notification_days_before') return '5';

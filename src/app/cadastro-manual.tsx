@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { getDocumentById, saveDocument, updateDocument } from '../db/database';
 import { scheduleActiveSync } from '../sync/schedule';
-import { brDateToISO, centsToDecimal, isoToBR, maskCurrency, maskDateInput } from '../utils/format';
+import { brDateToISO, centsToDecimal, isoToBR, maskCurrency, maskDateInput, offsetDateISO } from '../utils/format';
 import { parseBRLToCents } from '../utils/money';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -200,11 +200,31 @@ export default function CadastroManualScreen() {
           />
 
           <Text style={styles.label}>Data de Pagamento (opcional)</Text>
+
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+
+            <Pressable style={[styles.buttonSecondary, { flex: 1, paddingVertical: 10 }]} onPress={() => setEditPaymentDate(isoToBR(offsetDateISO(-1)))}>
+
+              <Text style={[styles.buttonTextSecondary, { fontSize: 14 }]}>Ontem</Text>
+
+            </Pressable>
+
+            <Pressable style={[styles.buttonSecondary, { flex: 1, paddingVertical: 10 }]} onPress={() => setEditPaymentDate(isoToBR(offsetDateISO(0)))}>
+
+              <Text style={[styles.buttonTextSecondary, { fontSize: 14 }]}>Hoje</Text>
+
+            </Pressable>
+
+            <Pressable style={[styles.buttonSecondary, { flex: 1, paddingVertical: 10 }]} onPress={() => setEditPaymentDate(isoToBR(offsetDateISO(1)))}>
+
+              <Text style={[styles.buttonTextSecondary, { fontSize: 14 }]}>Amanhã</Text>
+
+            </Pressable>
+
+          </View>
           <TextInput
             style={styles.input}
             value={editPaymentDate}
-            onChangeText={(t) => setEditPaymentDate(maskDateInput(t))}
-            placeholder="DD/MM/AAAA"
             keyboardType="numeric"
           />
           <Text style={styles.helpText}>Preencha se ja pagou. Deixe vazio para marcar depois.</Text>

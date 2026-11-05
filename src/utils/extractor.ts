@@ -150,7 +150,36 @@ function extractReference(text: string): string | null {
     return `${month}/${periodMatch[6]}`;
   }
 
-  // 2. Keywords (tolerante a erros do OCR)
+
+  // 2. Meses por extenso (ex: Novembro/2026, NOVEMBRO DE 2026, Nov/2026)
+
+  const MONTHS: Record<string, string> = {
+
+    jan: '01', fev: '02', mar: '03', abr: '04', mai: '05', jun: '06',
+
+    jul: '07', ago: '08', set: '09', out: '10', nov: '11', dez: '12'
+
+  };
+
+  const monthNames = 'janeiro|fevereiro|marco|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro';
+
+  const monthRegex = new RegExp(`(?:${monthNames}|jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)[a-z]*[^a-z0-9]{0,15}(\d{4})`, 'i');
+
+  const mExt = text.match(monthRegex);
+
+  if (mExt) {
+
+    const rawMonth = mExt[0].toLowerCase().substring(0, 3);
+
+    const year = mExt[1];
+
+    if (MONTHS[rawMonth]) return `${MONTHS[rawMonth]}/${year}`;
+
+  }
+
+  
+
+  // 3. Keywords (tolerante a erros do OCR)
   const keywords = ['MES\\/ANO', 'Referencia', 'REFERENCIUA', 'REFERENCIA', 'NESANO', 'PERIODO DE REFERENCIA'];
   for (const kw of keywords) {
     const regex = new RegExp(`(?:${kw})[^\\d]{0,60}?(\\d{2})[\\/\\.\\-\\s](\\d{4})`, 'i');

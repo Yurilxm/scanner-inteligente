@@ -15,7 +15,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { extractFields } from '../utils/extractor';
 import { parseBRLToCents } from '../utils/money';
-import { brDateToISO, centsToDecimal, isoToBR, maskCurrency, maskDateInput } from '../utils/format';
+import { brDateToISO, centsToDecimal, isoToBR, maskCurrency, maskDateInput, offsetDateISO } from '../utils/format';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ScannerBackground } from '../components/ScannerBackground';
@@ -298,6 +298,11 @@ export default function RevisaoScreen() {
             <Text style={styles.label}>
               {isPix ? 'Data do Pagamento (DD/MM/AAAA)' : 'Data de Pagamento (Opcional)'}
             </Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+              <Pressable style={[styles.buttonSecondary, { flex: 1, paddingVertical: 10 }]} onPress={() => setEditPaymentDate(isoToBR(offsetDateISO(-1)))}><Text style={[styles.buttonTextSecondary, { fontSize: 14 }]}>Ontem</Text></Pressable>
+              <Pressable style={[styles.buttonSecondary, { flex: 1, paddingVertical: 10 }]} onPress={() => setEditPaymentDate(isoToBR(offsetDateISO(0)))}><Text style={[styles.buttonTextSecondary, { fontSize: 14 }]}>Hoje</Text></Pressable>
+              <Pressable style={[styles.buttonSecondary, { flex: 1, paddingVertical: 10 }]} onPress={() => setEditPaymentDate(isoToBR(offsetDateISO(1)))}><Text style={[styles.buttonTextSecondary, { fontSize: 14 }]}>Amanhã</Text></Pressable>
+            </View>
             <TextInput style={styles.input} value={editPaymentDate} onChangeText={(t) => setEditPaymentDate(maskDateInput(t))} placeholder="DD/MM/AAAA" keyboardType="numeric" />
             {isPix && fields?.paymentTime ? (
               <Text style={styles.helpText}>Hora do comprovante: {fields.paymentTime}</Text>

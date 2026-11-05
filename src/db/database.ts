@@ -564,3 +564,28 @@ export function updateDocument(id: string, imageUri: string, ocrText: string, fi
     fields.boletoLine || null, ocrText || null, fields.pixKey || null, observacao || null, isPaid, paymentDate || null, now, now, id
   );
 }
+// Cria uma copia da conta para o mes seguinte (ex: Giga Mais de Dezembro)
+export function duplicateDocumentForNextMonth(id: string): string | null {
+  const doc = getDocumentById(id);
+  if (!doc || !doc.dueDate) return null;
+
+  const [y, m, d] = doc.dueDate.split('-').map(Number);
+  let nextMonth = m + 1;
+  let nextYear = y;
+  if (nextMonth > 12) { nextMonth = 1; nextYear += 1; }
+  const nextDueDate = `${nextYear}-${String(nextMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+  const fields: ExtractedFields = {
+    documentType: doc.documentType,
+    issuer: doc.issuer,
+    referenceMonth: `${String(nextMonth).padStart(2, '0')}/${nextYear}`,
+    cnpj: doc.cnpj,
+    cpf: doc.cpf,
+    totalAmountCents: doc.totalAmountCents,
+    dueDate: nextDueDate,
+    boletoLine: doc.boletoLine,
+    pixKey: doc.pixKey,
+  };
+
+  return saveDocument(doc.imageUri || '', doc.ocrText || '', fields, null, null);
+}

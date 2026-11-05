@@ -83,3 +83,12 @@ export function maskCurrency(text: string): string {
   const limited = clean.slice(0, 11); // ate 999.999.999,99
   return centsToDecimal(parseInt(limited, 10));
 }
+
+// Retorna data ISO deslocada por N dias (0 = hoje, -1 = ontem, 1 = amanha)
+export function offsetDateISO(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+}
