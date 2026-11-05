@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { View, Text, Image, Pressable, ScrollView, Modal, TextInput, BackHandler, Alert } from 'react-native';
 import { useLocalSearchParams, router, useNavigation } from 'expo-router';
-import { getCurrentProfile, getDocumentById, deleteDocumentById, moveDocumentToProfile, togglePaidStatus, updateDocumentIssuer, SavedDocument } from '../db/database';
+import { getCurrentProfile, getDocumentById, deleteDocumentById, moveDocumentToProfile, togglePaidStatus, updateDocumentIssuer, duplicateDocumentForNextMonth, SavedDocument } from '../db/database';
 import { scheduleActiveSync } from '../sync/schedule';
 import { File } from 'expo-file-system';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -35,6 +35,7 @@ export default function DetalhesScreen() {
   const [deleteVisible, setDeleteVisible] = useState(false);
   const [payModalVisible, setPayModalVisible] = useState(false);
   const [payDateInput, setPayDateInput] = useState('');
+  const [createNextMonth, setCreateNextMonth] = useState(false);
   const [reclassifyVisible, setReclassifyVisible] = useState(false);
   const [moveVisible, setMoveVisible] = useState(false);
   const [moved, setMoved] = useState<string | null>(null);
@@ -136,6 +137,7 @@ export default function DetalhesScreen() {
 
   const handleOpenPayModal = () => {
     setPayDateInput(isoToBR(todayISO()));
+    setCreateNextMonth(false);
     setPayModalVisible(true);
   };
 
@@ -149,6 +151,26 @@ export default function DetalhesScreen() {
     scheduleActiveSync();
     updateDoc({ ...doc, isPaid: 1, paymentDate: formattedDate });
     setPayModalVisible(false);
+
+    // Recorrencia: cria a conta do mes seguinte se o usuario marcou
+    if (createNextMonth) {
+      try {
+        const newId = duplicateDocumentForNextMonth(doc.id);
+        if (newId) {
+          scheduleActiveSync();
+          const clone = getDocumentById(newId);
+          if (clone?.dueDate && clone.issuer) {
+            scheduleDueDateReminder(newId, clone.issuer, clone.dueDate)
+              .catch(e => console.warn('Lembrete do clone', e));
+          }
+          setToastMsg('Conta do proximo mes criada!');
+        }
+      } catch (e) {
+        console.warn('Erro ao criar recorrencia', e);
+        Alert.alert('Erro ao criar recorrencia', e instanceof Error ? e.message : String(e));
+      }
+    }
+    setCreateNextMonth(false);
   };
 
   const handleTogglePaid = () => {
@@ -314,6 +336,28 @@ export default function DetalhesScreen() {
               placeholder="DD/MM/AAAA"
               keyboardType="numeric"
             />
+            {doc.dueDate ? (
+              <Pressable
+                onPress={() => setCreateNextMonth(!createNextMonth)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16, paddingHorizontal: 4 }}
+              >
+                <MaterialCommunityIcons
+                  name={createNextMonth ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                  size={24}
+                  color={theme.colors.primary}
+                />
+                <Text style={{ color: theme.colors.text, fontFamily: theme.fonts.regular, fontSize: 14, flex: 1 }}>
+                  Criar conta do proximo mes (vencimento {(() => {
+                    const [y, m, d] = doc.dueDate!.split('-').map(Number);
+                    let nm = m + 1, ny = y;
+                    if (nm > 12) { nm = 1; ny += 1; }
+                    const dim = new Date(ny, nm, 0).getDate();
+                    const nd = Math.min(d, dim);
+                    return `${String(nd).padStart(2, '0')}/${String(nm).padStart(2, '0')}/${ny}`;
+                  })()})
+                </Text>
+              </Pressable>
+            ) : null}
             <View style={styles.payActions}>
               <Pressable style={styles.payCancel} onPress={() => setPayModalVisible(false)}>
                 <Text style={styles.payCancelText}>Cancelar</Text>

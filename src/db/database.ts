@@ -573,7 +573,11 @@ export function duplicateDocumentForNextMonth(id: string): string | null {
   let nextMonth = m + 1;
   let nextYear = y;
   if (nextMonth > 12) { nextMonth = 1; nextYear += 1; }
-  const nextDueDate = `${nextYear}-${String(nextMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
+  // Ajusta o dia se o proximo mes tem menos dias (ex: 31/01 -> 28/02)
+  const daysInNextMonth = new Date(nextYear, nextMonth, 0).getDate();
+  const nextDay = Math.min(d, daysInNextMonth);
+  const nextDueDate = `${nextYear}-${String(nextMonth).padStart(2, '0')}-${String(nextDay).padStart(2, '0')}`;
 
   const fields: ExtractedFields = {
     documentType: doc.documentType,
@@ -583,9 +587,10 @@ export function duplicateDocumentForNextMonth(id: string): string | null {
     cpf: doc.cpf,
     totalAmountCents: doc.totalAmountCents,
     dueDate: nextDueDate,
-    boletoLine: doc.boletoLine,
+    boletoLine: null,  // boleto do mes seguinte e diferente
     pixKey: doc.pixKey,
   };
 
-  return saveDocument(doc.imageUri || '', doc.ocrText || '', fields, null, null);
+  // Mantem a foto do mes anterior (referencia), mas limpa o OCR antigo
+  return saveDocument(doc.imageUri || '', '', fields, null, null);
 }
