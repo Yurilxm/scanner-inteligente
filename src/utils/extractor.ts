@@ -151,33 +151,20 @@ function extractReference(text: string): string | null {
   }
 
 
-  // 2. Meses por extenso (ex: Novembro/2026, NOVEMBRO DE 2026, Nov/2026)
-
+  // 2. Meses por extenso em QUALQUER formato:
+  //    "Novembro/2026", "NOVEMBRO DE 2026", "Nov/2026", "Novembrol2026" (OCR colando L no lugar da barra)
   const MONTHS: Record<string, string> = {
-
     jan: '01', fev: '02', mar: '03', abr: '04', mai: '05', jun: '06',
-
     jul: '07', ago: '08', set: '09', out: '10', nov: '11', dez: '12'
-
   };
-
-  const monthNames = 'janeiro|fevereiro|marco|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro';
-
-  const monthRegex = new RegExp(`(?:${monthNames}|jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)[a-z]*[^a-z0-9]{0,15}(\d{4})`, 'i');
-
+  // Regex LITERAL (nao usa new RegExp) para evitar bug de escape \d em template literal
+  const monthRegex = /(?:jan(?:eiro)?|fev(?:ereiro)?|mar(?:co|ço)?|abr(?:il)?|mai(?:o)?|jun(?:ho)?|jul(?:ho)?|ago(?:sto)?|set(?:embro)?|out(?:ubro)?|nov(?:embro)?|dez(?:embro)?)[a-z]*[^a-z0-9]{0,15}([0-9]{4})/i;
   const mExt = text.match(monthRegex);
-
   if (mExt) {
-
     const rawMonth = mExt[0].toLowerCase().substring(0, 3);
-
     const year = mExt[1];
-
     if (MONTHS[rawMonth]) return `${MONTHS[rawMonth]}/${year}`;
-
   }
-
-  
 
   // 3. Keywords (tolerante a erros do OCR)
   const keywords = ['MES\\/ANO', 'Referencia', 'REFERENCIUA', 'REFERENCIA', 'NESANO', 'PERIODO DE REFERENCIA'];

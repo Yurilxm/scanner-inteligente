@@ -34,4 +34,29 @@ describe('extractor', () => {
     expect(fields.documentType).toBe('PIX');
     expect(fields.totalAmountCents).toBe(5000);
   });
+
+  it('extrai referencia com mes por extenso (Novembro/2026)', async () => {
+    const text = `
+      ENEL DISTRIBUICAO SAO PAULO
+      Referencia: Novembro/2026
+      Vencimento: 15/11/2026
+      Total a Pagar: R$ 100,00
+    `;
+    const fields = await extractFields(text);
+    expect(fields.referenceMonth).toBe('11/2026');
+  });
+
+  it('extrai referencia com OCR colado (Novembrol2026 - L no lugar da barra)', async () => {
+    // Reproduz o bug real do boleto Giga Mais: OCR colou "l" entre "Novembro" e "2026"
+    const text = `
+      GIGA MAIS FIBRA
+      REFERÊNCIA
+      Novembrol2026
+      EMISSÃO 04/11/2026
+      VENCIMENTO 10/11/2026
+      VALOR TOTAL R$ 58,06
+    `;
+    const fields = await extractFields(text);
+    expect(fields.referenceMonth).toBe('11/2026');
+  });
 });
