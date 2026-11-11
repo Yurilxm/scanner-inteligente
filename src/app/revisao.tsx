@@ -361,15 +361,19 @@ export default function RevisaoScreen() {
               </>
             )}
 
-            <Text style={styles.sectionTitle}>Texto Completo (OCR)</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              multiline
-              value={ocrText || ''}
-              onChangeText={setOcrText}
-              placeholder="Nenhum texto reconhecido."
-              textAlignVertical="top"
-            />
+            {SHOW_DEV_TOOLS && (
+              <>
+                <Text style={styles.sectionTitle}>Texto Completo (OCR)</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  multiline
+                  value={ocrText || ''}
+                  onChangeText={setOcrText}
+                  placeholder="Nenhum texto reconhecido."
+                  textAlignVertical="top"
+                />
+              </>
+            )}
           </View>
         )}
       </ScrollView>
