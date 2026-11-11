@@ -28,7 +28,8 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
-      }
+      },
+      "environment": "production"
     }
   },
   "submit": {
