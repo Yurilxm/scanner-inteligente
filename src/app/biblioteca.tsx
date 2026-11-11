@@ -1,10 +1,10 @@
 import { useState, useCallback, useMemo } from 'react';
 import { View, Text, SectionList, FlatList, Pressable, Image, TextInput, Modal, ScrollView, Alert } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
-import { getDocuments, deleteDocumentById, togglePaidStatus, getCurrentProfile, SavedDocument } from '../db/database';
+import { getDocuments, deleteDocumentById, togglePaidStatus, getCurrentProfile, SavedDocument, duplicateDocumentForNextMonth, getDocumentById } from '../db/database';
 import { generateCSVFile, generatePDFFile, shareFile } from '../utils/export';
-import { cancelDueDateReminders, syncDueDateReminders } from '../utils/notifications';
-import { formatBRL } from '../utils/format';
+import { cancelDueDateReminders, syncDueDateReminders, scheduleDueDateReminder } from '../utils/notifications';
+import { formatBRL, brDateToISO, isoToBR, maskDateInput, todayISO } from '../utils/format';
 import { File } from 'expo-file-system';
 // getContentUriAsync da API nova é só um stub que lança erro; a implementação está na legacy
 import { getContentUriAsync } from 'expo-file-system/legacy';
@@ -28,6 +28,9 @@ export default function BibliotecaScreen() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('TODAS');
   const [docToDelete, setDocToDelete] = useState<SavedDocument | null>(null);
+  const [docToPay, setDocToPay] = useState<SavedDocument | null>(null);
+  const [payDateInput, setPayDateInput] = useState('');
+  const [createNextMonth, setCreateNextMonth] = useState(false);
   const [csvPreview, setCsvPreview] = useState<{ visible: boolean, content: string, uri: string }>({ visible: false, content: '', uri: '' });
   const [selectedIssuer, setSelectedIssuer] = useState<string | null>(null);
   const role = activeProfileRole();
@@ -59,12 +62,57 @@ export default function BibliotecaScreen() {
     setDocToDelete(null);
   };
 
+  const handleOpenPayModal = (doc: SavedDocument) => {
+    const initialDate = doc.paymentDate ? isoToBR(doc.paymentDate) : isoToBR(todayISO());
+    setPayDateInput(initialDate);
+    setCreateNextMonth(false);
+    setDocToPay(doc);
+  };
+
   const handleTogglePaid = (doc: SavedDocument) => {
-    togglePaidStatus(doc.id, doc.isPaid);
+    if (doc.isPaid === 1) {
+      togglePaidStatus(doc.id, doc.isPaid);
+      scheduleActiveSync();
+      syncDueDateReminders({ ...doc, isPaid: 0 })
+        .catch(e => console.warn('Erro ao atualizar notificacao', e));
+      setDocuments(getDocuments());
+    } else {
+      handleOpenPayModal(doc);
+    }
+  };
+
+  const handleConfirmPayment = () => {
+    if (!docToPay) return;
+    const formattedDate = brDateToISO(payDateInput);
+    if (!formattedDate) {
+      Alert.alert('Data invalida', 'Informe a data no formato DD/MM/AAAA');
+      return;
+    }
+    togglePaidStatus(docToPay.id, docToPay.isPaid, formattedDate);
     scheduleActiveSync();
-    syncDueDateReminders({ ...doc, isPaid: doc.isPaid === 1 ? 0 : 1 })
+    syncDueDateReminders({ ...docToPay, isPaid: 1 })
       .catch(e => console.warn('Erro ao atualizar notificacao', e));
+
+    if (createNextMonth) {
+      try {
+        const newId = duplicateDocumentForNextMonth(docToPay.id);
+        if (newId) {
+          const clone = getDocumentById(newId);
+          if (clone?.dueDate && clone.issuer) {
+            scheduleDueDateReminder(newId, clone.issuer, clone.dueDate)
+              .catch(e => console.warn('Lembrete do clone', e));
+          }
+          Alert.alert('Conta criada', 'A conta do proximo mes foi criada.');
+        } else {
+          Alert.alert('Aviso', 'A conta do proximo mes ja existe.');
+        }
+      } catch (e) {
+        Alert.alert('Erro ao criar recorrencia', e instanceof Error ? e.message : String(e));
+      }
+    }
+
     setDocuments(getDocuments());
+    setDocToPay(null);
   };
 
   const handleExport = async (type: 'csv' | 'pdf') => {
@@ -309,7 +357,47 @@ export default function BibliotecaScreen() {
         onConfirm={handleDelete}
         onCancel={() => setDocToDelete(null)}
       />
-    </LinearGradient>
+            <Modal visible={!!docToPay} transparent animationType="fade" onRequestClose={() => setDocToPay(null)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' }}>
+            <View style={{ backgroundColor: theme.colors.panel, padding: 20, borderRadius: 12, width: '85%', borderWidth: 1, borderColor: theme.colors.border }}>
+              <Text style={{ fontSize: 18, fontFamily: theme.fonts.bold, color: theme.colors.primary, marginBottom: 16, textAlign: 'center' }}>
+                Data do Pagamento
+              </Text>
+              <TextInput
+                style={{ backgroundColor: theme.colors.background, color: theme.colors.text, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 12, textAlign: 'center', fontFamily: theme.fonts.regular }}
+                value={payDateInput}
+                onChangeText={(t) => setPayDateInput(maskDateInput(t))}
+                placeholder="DD/MM/AAAA"
+                keyboardType="numeric"
+              />
+              {docToPay?.dueDate ? (
+                <Pressable onPress={() => setCreateNextMonth(!createNextMonth)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16, paddingHorizontal: 4 }}>
+                  <MaterialCommunityIcons name={createNextMonth ? 'checkbox-marked' : 'checkbox-blank-outline'} size={24} color={theme.colors.primary} />
+                  <Text style={{ color: theme.colors.text, fontFamily: theme.fonts.regular, fontSize: 14, flex: 1 }}>
+                    Criar conta do proximo mes (vencimento {(() => {
+                      const due = docToPay.dueDate as string;
+                      const [y, m, d] = due.split('-').map(Number);
+                      let nm = m + 1, ny = y;
+                      if (nm > 12) { nm = 1; ny += 1; }
+                      const dim = new Date(ny, nm, 0).getDate();
+                      const nd = Math.min(d, dim);
+                      return `${String(nd).padStart(2, '0')}/${String(nm).padStart(2, '0')}/${ny}`;
+                    })()})
+                  </Text>
+                </Pressable>
+              ) : null}
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                <Pressable onPress={() => setDocToPay(null)} style={{ flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: theme.colors.border }}>
+                  <Text style={{ color: theme.colors.textSecondary, fontFamily: theme.fonts.bold }}>Cancelar</Text>
+                </Pressable>
+                <Pressable onPress={handleConfirmPayment} style={{ flex: 1, padding: 12, borderRadius: 8, alignItems: 'center', backgroundColor: theme.colors.primary }}>
+                  <Text style={{ color: theme.colors.background, fontFamily: theme.fonts.bold }}>Confirmar</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </Modal>
+</LinearGradient>
   );
 }
 

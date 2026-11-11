@@ -578,13 +578,22 @@ export function duplicateDocumentForNextMonth(id: string): string | null {
   const nextDay = Math.min(d, daysInNextMonth);
   const nextDueDate = `${nextYear}-${String(nextMonth).padStart(2, '0')}-${String(nextDay).padStart(2, '0')}`;
 
+  // Verifica se a conta do proximo mes ja existe para evitar duplicatas
+  if (doc.issuer) {
+    const exists = db.getFirstSync<{ id: string }>(
+      'SELECT id FROM documents WHERE issuer = ? AND dueDate = ? AND deletedAt IS NULL AND documentType = ?',
+      doc.issuer, nextDueDate, doc.documentType
+    );
+    if (exists) return null;
+  }
+
   const fields: ExtractedFields = {
     documentType: doc.documentType,
     issuer: doc.issuer,
     referenceMonth: `${String(nextMonth).padStart(2, '0')}/${nextYear}`,
     cnpj: doc.cnpj,
     cpf: doc.cpf,
-    totalAmountCents: doc.totalAmountCents,
+    totalAmountCents: null,
     dueDate: nextDueDate,
     boletoLine: null,
     pixKey: doc.pixKey,

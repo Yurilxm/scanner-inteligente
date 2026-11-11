@@ -92,6 +92,31 @@ export default function DetalhesScreen() {
     }
   };
 
+  const handleRemovePhoto = () => {
+    Alert.alert(
+      'Remover Foto',
+      'Tem certeza que deseja remover a foto deste documento?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Remover',
+          style: 'destructive',
+          onPress: () => {
+            try {
+              if (doc.imageUri) {
+                const file = new File(doc.imageUri);
+                if (file.exists) file.delete();
+              }
+            } catch {}
+            updateDocument(doc.id, '', doc.ocrText || '', doc, doc.paymentDate, doc.observacao);
+            setDoc({ ...doc, imageUri: '' });
+            setToastMsg('Foto removida.');
+          },
+        },
+      ]
+    );
+  };
+
   const copyPixKey = async (text: string) => {
     try {
       const mod = await import('expo-clipboard');
@@ -186,6 +211,8 @@ export default function DetalhesScreen() {
               .catch(e => console.warn('Lembrete do clone', e));
           }
           setToastMsg('Conta do proximo mes criada!');
+        } else {
+          Alert.alert('Aviso', 'A conta do proximo mes ja existe.');
         }
       } catch (e) {
         console.warn('Erro ao criar recorrencia', e);
@@ -214,8 +241,8 @@ export default function DetalhesScreen() {
           <Text style={styles.headerTitle}>DETALHES</Text>
           <Pressable
             onPress={() => {
-              // Conta sem comprovante: vai pra cadastro-manual (nao faz sentido revisao/OCR)
-              if (doc.documentType === 'CONTA' && !doc.imageUri) {
+              // Documento sem foto (ex: clone de recorrencia): edita via cadastro-manual
+              if (!doc.imageUri) {
                 router.push({ pathname: '/cadastro-manual', params: { editId: doc.id } });
                 return;
               }
@@ -248,10 +275,17 @@ export default function DetalhesScreen() {
         </View>
         <ScrollView contentContainerStyle={styles.content}>
           {doc.imageUri ? (
-            <Pressable onPress={() => setZoomVisible(true)}>
-              <Image source={{ uri: doc.imageUri }} style={styles.image} resizeMode="contain" />
-              <Text style={styles.hint}>Toque na imagem para ampliar</Text>
-            </Pressable>
+            <View>
+              <Pressable onPress={() => setZoomVisible(true)}>
+                <Image source={{ uri: doc.imageUri }} style={styles.image} resizeMode="contain" />
+                <Text style={styles.hint}>Toque na imagem para ampliar</Text>
+              </Pressable>
+              <Pressable style={{ alignItems: 'center', marginTop: 12, marginBottom: 8 }} onPress={handleRemovePhoto}>
+                <Text style={{ color: theme.colors.danger, fontFamily: theme.fonts.medium, fontSize: 14 }}>
+                  Remover Foto
+                </Text>
+              </Pressable>
+            </View>
           ) : (
             <Pressable style={styles.addPhotoBtn} onPress={handleAddPhoto}>
               <MaterialCommunityIcons name="camera-plus" size={32} color={theme.colors.primary} />

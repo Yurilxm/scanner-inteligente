@@ -71,7 +71,7 @@ export default function CadastroManualScreen() {
     try {
       // Conta manual e sempre 'CONTA', sem foto (imageUri vazio) e sem OCR.
       const fields: ExtractedFields = {
-        documentType: 'CONTA',
+        documentType: initialDoc?.documentType || 'CONTA',
         issuer: trimmedIssuer,
         referenceMonth: editReference.trim() || null,
         cnpj: null,
