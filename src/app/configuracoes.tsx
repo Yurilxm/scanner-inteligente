@@ -13,6 +13,7 @@ import { ProfileAvatar } from '../components/ProfileAvatar';
 import { CustomModal } from '../components/CustomModal';
 import { scheduleTestReminder } from '../utils/notifications';
 import * as Linking from 'expo-linking';
+import { SHOW_DEV_TOOLS } from '../utils/devTools';
 
 type UpdatesModule = typeof import('expo-updates');
 // Carregado só se existir: APKs gerados antes do expo-updates não têm o módulo nativo e o import quebraria a tela
@@ -28,7 +29,7 @@ const Updates: UpdatesModule | null = (() => {
 // Link do último APK de teste (muda a cada build; fica no .env.local e na variável do EAS)
 const DEV_APK_URL = process.env.EXPO_PUBLIC_DEV_APK_URL;
 // Seção de testes: no build de desenvolvimento e no APK de teste (canal preview), nunca na produção
-const SHOW_DEV_SECTION = __DEV__ || Updates?.channel === 'preview';
+const SHOW_DEV_SECTION = SHOW_DEV_TOOLS;
 
 function describeRunningUpdate(): string {
   if (__DEV__ || !Updates) return 'Rodando pelo servidor de desenvolvimento do PC.';

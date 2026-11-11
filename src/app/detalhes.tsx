@@ -363,7 +363,7 @@ export default function DetalhesScreen() {
             </>
           )}
 
-          {getDiagnosticsUrl() && (
+          {__DEV__ && getDiagnosticsUrl() && (
             <Pressable style={styles.deleteButton} onPress={handleSendDiagnostics}>
               <Text style={styles.reclassifyText}>Enviar diagnóstico para o PC (dev)</Text>
             </Pressable>

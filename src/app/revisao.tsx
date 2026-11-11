@@ -24,6 +24,7 @@ import { makeStyles, useTheme } from '../theme';
 import { CustomModal } from '../components/CustomModal';
 import { ReclassifyModal } from '../components/ReclassifyModal';
 import { AppStateFlag } from '../utils/AppStateFlag';
+import { SHOW_DEV_TOOLS } from '../utils/devTools';
 import { requestNotificationPermissions, scheduleDueDateReminder } from '../utils/notifications';
 
 export default function RevisaoScreen() {
@@ -216,24 +217,26 @@ export default function RevisaoScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 }}>
           <Text style={{ color: theme.colors.primary, fontSize: 14, fontFamily: theme.fonts.bold }}>REVISAO</Text>
-          <Pressable
-            onPress={async () => {
-              if (!ocrText) return;
-              try {
-                // O arquivo anterior já foi compartilhado; não deixa texto de contas acumulando
-                await cleanupDebugFiles();
-                const path = FileSystem.cacheDirectory + 'ocr_debug_' + Date.now() + '.txt';
-                await FileSystem.writeAsStringAsync(path, ocrText);
-                if (await Sharing.isAvailableAsync()) {
-                  await Sharing.shareAsync(path, { mimeType: 'text/plain', dialogTitle: 'OCR Bruto' });
+          {SHOW_DEV_TOOLS && (
+            <Pressable
+              onPress={async () => {
+                if (!ocrText) return;
+                try {
+                  // O arquivo anterior já foi compartilhado; não deixa texto de contas acumulando
+                  await cleanupDebugFiles();
+                  const path = FileSystem.cacheDirectory + 'ocr_debug_' + Date.now() + '.txt';
+                  await FileSystem.writeAsStringAsync(path, ocrText);
+                  if (await Sharing.isAvailableAsync()) {
+                    await Sharing.shareAsync(path, { mimeType: 'text/plain', dialogTitle: 'OCR Bruto' });
+                  }
+                } catch (e) {
+                  Alert.alert('Erro', String(e));
                 }
-              } catch (e) {
-                Alert.alert('Erro', String(e));
-              }
-            }}
-          >
-            <Text style={{ color: theme.colors.success, fontSize: 12, fontFamily: theme.fonts.bold }}>EXPORTAR OCR</Text>
-          </Pressable>
+              }}
+            >
+              <Text style={{ color: theme.colors.success, fontSize: 12, fontFamily: theme.fonts.bold }}>EXPORTAR OCR</Text>
+            </Pressable>
+          )}
         </View>
         <Pressable onPress={() => setIsImageVisible(true)} style={styles.imageContainer}>
           <Image source={{ uri: imageUri! }} style={styles.image} resizeMode="contain" />
