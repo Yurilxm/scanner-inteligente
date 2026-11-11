@@ -2,6 +2,34 @@
 
 Mudanças da branch `fix/extracao-e-dados` em relação à `main`, agrupadas por área. Os números de testes indicam o total que passava em cada etapa; hoje são **297 testes** (50 suítes), com lint e typecheck limpos e `expo-doctor` 20/20.
 
+## Versão 1.1 (Nov 2026) — Recorrência, ferramentas de dev e UX
+
+Fecha o ciclo de uso real do app (primeiras contas pagas) e separa ferramentas de desenvolvimento das builds de produção.
+
+### Recorrência mensal
+- **Checkbox "Criar conta do próximo mês"** no modal de pagamento (tanto na Revisão quanto nos Detalhes e na Biblioteca). Aparece com o vencimento calculado (`10/11/2026` → `10/12/2026`, tolerante a mês com menos dias: `31/01` → `28/02`).
+- **Clone é esboço**: sem foto, sem OCR, sem boleto, sem valor. Só herda emissor, vencimento, referência, CNPJ/CPF e chave Pix. Você completa quando a conta real chegar (o valor varia mês a mês).
+- **Sem duplicata**: o `duplicateDocumentForNextMonth` checa se já existe conta com mesmo `(issuer, dueDate)`; retorna `null` e o modal avisa em vez de criar clone infinito.
+- **Edição do clone**: o lápis vai pra `cadastro-manual` (não `revisao`), evitando rodar OCR na foto nova e sobrescrever com `OUTROS`. O `cadastro-manual` preserva `documentType`, `cnpj`, `cpf` e `boletoLine` do original.
+
+### Ferramentas de desenvolvimento
+- Novo `src/utils/devTools.ts` com `SHOW_DEV_TOOLS` (`__DEV__ || channel development/preview`).
+- Botão "Exportar OCR" (revisão), "Enviar diagnóstico" (detalhes), "Test reminder" e "Baixar APK de teste" (configurações) ficam **invisíveis em produção**.
+- **Antes:** "Exportar OCR" vazava pro usuário final. **Agora:** some em `production-apk`.
+
+### UX de pagamento e foto
+- **Remover Foto** nos detalhes: apaga o arquivo e zera `imageUri`; volta a mostrar "Adicionar Foto".
+- **Data preservada ao desmarcar**: `togglePaidStatus` não limpa mais `paymentDate` no banco. Ao remarcar, o modal abre com a data antiga (não mais "hoje" forçado).
+- **Modal de pagamento na Biblioteca**: o botão "Pagar" da lista agora abre o mesmo modal de data (antes só alternava e chutava hoje).
+- **Todos os `Alert.alert` de dev/UX viraram `CustomModal`** (o cinza feio do sistema sumiu): remover foto, clone existente, data inválida.
+
+### Correções
+- **Referência por extenso**: `extractReference` reconhece `Novembro/2026`, `NOVEMBRO DE 2026`, `Nov/2026` e até `Novembrol2026` (OCR colando `l` no lugar da barra). Regex literal (imune a bug de escape `\d` em template).
+- **Rota do lápis blindada**: documento sem OCR (`ocrText` vazio) ou tipo `CONTA` vai pra `cadastro-manual`, independente do `documentType` ser `BOLETO` ou `PIX`.
+- **Testes**: 323/323 em 62 suítes. `recorrencia` (14), `fluxo_recorrencia` (5), `reminders` (6), `extractor` (3, incluindo referência por extenso). Timeouts de testes de UI (onboarding, format_reclassify) subiram pra 30s por lentidão da suíte completa.
+
+---
+
 ## Um perfil, várias gavetas
 
 O app passou a ter **um perfil só** (a pessoa), que pode ser ligado à conta Google, e as contas ficam em **gavetas**. Antes, cada "perfil" fazia as duas coisas, e compartilhar um perfil podia expor contas pessoais.

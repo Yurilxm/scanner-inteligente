@@ -13,6 +13,8 @@ Aplicativo mobile (Android) de contas da casa. Digitaliza contas de consumo, bol
 - **Extração Inteligente de Pix:** Lê comprovantes de transferência e extrai o nome do recebedor de forma universal (tolerante a layouts do Bradesco, Nubank, Itaú, etc.), o valor e a data/hora exata do comprovante. Oculta campos inúteis para Pix (como Vencimento e Referência) e permite copiar a chave Pix com um toque.
 - **Cadastro Manual de Contas:** Adicione contas que não têm papel (ex: academia, curso de inglês). Preencha o nome, valor, vencimento, chave Pix (opcional) e receba notificações normalmente.
 - **Edição de Documentos:** Qualquer conta (boleto, pix ou manual) pode ser editada clicando no ícone de lápis na tela de detalhes. As alterações refletem na hora.
+- **Adicionar e Remover Foto:** Em qualquer documento, você pode trocar a foto ou removê-la (útil quando errou o boleto e quer escanear o certo). O botão "Adicionar Foto" aparece quando não tem imagem; "Remover Foto" quando tem.
+- **Recorrência Mensal:** Ao marcar uma conta como paga, aparece um checkbox "Criar conta do próximo mês" (com o vencimento calculado: ex: 10/12/2026). O clone vem como esboço (sem foto, sem valor, com emissor e vencimento). Você completa quando a conta do mês seguinte chegar. Contas duplicadas são bloqueadas por `(emissor + vencimento)`.
 - **Lembretes Inteligentes:** 5, 3 ou 1 dia antes, uma vez ou diariamente. Se você cadastrar uma conta que vence em 3 dias e a configuração for de 5 dias, o app faz um *catch-up* e agenda o aviso para o próximo dia útil às 9h. O sininho mostra o próximo aviso agrupado por conta para não poluir a tela.
 - **Linha Digitável Validada:** Confere os dígitos verificadores (Febraban, 47 e 48 dígitos) e descarta leituras erradas do OCR. Quando válida, o valor e o vencimento vêm da própria linha.
 - **Aprendizado Contínuo:** Reclassificação manual com palavra-chave. Nas próximas leituras, o app acerta automaticamente.
@@ -23,7 +25,7 @@ Aplicativo mobile (Android) de contas da casa. Digitaliza contas de consumo, bol
 - **Gestão de Contas:** Status Pago/Pendente com Data de Pagamento. Máscara de moeda automática (ex: 10000 vira 100,00) e de data (DD/MM/AAAA).
 - **Exportação:** PDF (visualizador nativo) e CSV (padrão Excel pt-BR), com aviso quando falha.
 - **Automação Desktop:** Script Python atualiza planilha Excel com backup automático.
-- **Debug OCR:** Botão Exportar OCR na tela de revisão para depurar leituras.
+- **Ferramentas de Desenvolvimento (só dev/preview):** Botão "Exportar OCR" na revisão, "Enviar diagnóstico para o PC" nos detalhes, "Disparar lembrete de teste" e "Baixar APK de teste" em Configurações. Controlado por `SHOW_DEV_TOOLS` (`__DEV__ || channel development/preview`). No build de produção (`production-apk`), **nada disso aparece**.
 
 ## Stack Tecnológica
 
@@ -35,7 +37,7 @@ Aplicativo mobile (Android) de contas da casa. Digitaliza contas de consumo, bol
 - **Login Google nativo:** react-native-credentials-manager
 - **UI e Utilidades:** react-native-reanimated, react-native-svg, react-native-gesture-handler, expo-linear-gradient, expo-clipboard
 - **Build e atualizações:** EAS Build (APK na nuvem) e EAS Update (OTA)
-- **Testes:** Jest + Testing Library (**303 testes**, 60 suítes)
+- **Testes:** Jest + Testing Library (**323 testes**, 62 suítes)
 
 ## Início rápido (desenvolvedores)
 
