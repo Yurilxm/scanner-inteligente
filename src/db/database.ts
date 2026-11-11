@@ -209,11 +209,19 @@ export function getDocuments(): SavedDocument[] {
 
 export function togglePaidStatus(id: string, currentStatus: number, paymentDate?: string): void {
   const newStatus = currentStatus === 1 ? 0 : 1;
-  const dateToSave = newStatus === 1 ? (paymentDate || todayISO()) : null;
-  db.runSync(
-    'UPDATE documents SET isPaid = ?, paymentDate = ?, paymentUpdatedAt = ?, paymentDirty = 1 WHERE id = ?',
-    newStatus, dateToSave, new Date().toISOString(), id,
-  );
+  if (newStatus === 1) {
+    const dateToSave = paymentDate || todayISO();
+    db.runSync(
+      'UPDATE documents SET isPaid = 1, paymentDate = ?, paymentUpdatedAt = ?, paymentDirty = 1 WHERE id = ?',
+      dateToSave, new Date().toISOString(), id,
+    );
+  } else {
+    // Ao desmarcar, mantemos a data antiga no banco para o usuario nao perder o registro
+    db.runSync(
+      'UPDATE documents SET isPaid = 0, paymentUpdatedAt = ?, paymentDirty = 1 WHERE id = ?',
+      new Date().toISOString(), id,
+    );
+  }
 }
 
 // Exclusão marcada: o registro fica (sem o texto do OCR) para a sincronização avisar os outros aparelhos

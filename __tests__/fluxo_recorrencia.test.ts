@@ -19,13 +19,23 @@ jest.mock('expo-sqlite', () => {
             isPaid: args[13], paymentDate: args[14],
           });
         }
-        // UPDATE togglePaidStatus: args = [newStatus, dateToSave, now, id]
+        // UPDATE togglePaidStatus: agora o isPaid eh literal na SQL
+        // - mark:   "SET isPaid = 1, paymentDate = ?, ..." -> args = [date, now, id]
+        // - unmark: "SET isPaid = 0, ..."                 -> args = [now, id]
         if (sql.includes('UPDATE documents SET isPaid')) {
-          const id = args[3];
-          if (docs.has(id)) {
-            const d = docs.get(id);
-            d.isPaid = args[0];
-            d.paymentDate = args[1];
+          if (sql.includes('isPaid = 1')) {
+            const [paymentDate, , id] = args;
+            if (docs.has(id)) {
+              const d = docs.get(id);
+              d.isPaid = 1;
+              d.paymentDate = paymentDate;
+            }
+          } else {
+            const [, id] = args;
+            if (docs.has(id)) {
+              docs.get(id).isPaid = 0;
+              // mantem o paymentDate (fix: nao apaga ao desmarcar)
+            }
           }
         }
       }),
@@ -107,8 +117,28 @@ describe('Fluxo completo de recorrencia (integracao)', () => {
       (c: any[]) => c[0].includes('UPDATE documents SET isPaid')
     );
     expect(updateCall).toBeDefined();
-    expect(updateCall[1]).toBe(1);              // novo isPaid
-    expect(updateCall[2]).toBe('2026-12-08');   // paymentDate novo
+    // SQL atual: "UPDATE documents SET isPaid = 1, paymentDate = ?, paymentUpdatedAt = ?, ..."
+    // args: [paymentDate='2026-12-08', now, id=cloneId]
+    expect(updateCall[1]).toBe('2026-12-08');   // paymentDate
+    expect(updateCall[3]).toBe(cloneId);        // id
+  });
+
+  it('togglePaidStatus ao desmarcar mantem a paymentDate antiga', () => {
+    seedDoc();
+    const cloneId = duplicateDocumentForNextMonth('doc-1');
+    togglePaidStatus(cloneId!, 0, '2026-12-08'); // marca
+    // Agora simula o clone como pago e desmarca
+    (mockDb as any).runSync.mockClear();
+    togglePaidStatus(cloneId!, 1);
+
+    const updateCall = (mockDb as any).runSync.mock.calls.find(
+      (c: any[]) => c[0].includes('UPDATE documents SET isPaid')
+    );
+    expect(updateCall).toBeDefined();
+    // SQL atual: "SET isPaid = 0, paymentUpdatedAt = ?, ..."
+    // args: [now, id]
+    expect(updateCall[1]).not.toBe('2026-12-08'); // paymentDate NAO eh passado
+    expect(updateCall[2]).toBe(cloneId);          // id
   });
 
   it('clonar conta ja paga ainda gera clone pendente (nao herda o pago)', () => {

@@ -30,6 +30,9 @@ jest.mock('../src/components/CustomModal', () => {
   };
 });
 
+// Suite completa + ambiente lento pode estourar os 5s padrao
+jest.setTimeout(30000);
+
 describe('Onboarding', () => {
   beforeEach(() => { jest.clearAllMocks(); });
   afterEach(() => { cleanup(); });

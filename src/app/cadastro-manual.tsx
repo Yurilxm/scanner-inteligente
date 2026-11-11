@@ -74,11 +74,11 @@ export default function CadastroManualScreen() {
         documentType: initialDoc?.documentType || 'CONTA',
         issuer: trimmedIssuer,
         referenceMonth: editReference.trim() || null,
-        cnpj: null,
-        cpf: null,
+        cnpj: initialDoc?.cnpj || null,
+        cpf: initialDoc?.cpf || null,
         totalAmountCents,
         dueDate: dueDateIso,
-        boletoLine: null,
+        boletoLine: initialDoc?.boletoLine || null,
         pixKey: editPixKey.trim() || null,
       };
 

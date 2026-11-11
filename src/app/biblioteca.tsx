@@ -31,6 +31,7 @@ export default function BibliotecaScreen() {
   const [docToPay, setDocToPay] = useState<SavedDocument | null>(null);
   const [payDateInput, setPayDateInput] = useState('');
   const [createNextMonth, setCreateNextMonth] = useState(false);
+  const [notice, setNotice] = useState<{ title: string; message: string } | null>(null);
   const [csvPreview, setCsvPreview] = useState<{ visible: boolean, content: string, uri: string }>({ visible: false, content: '', uri: '' });
   const [selectedIssuer, setSelectedIssuer] = useState<string | null>(null);
   const role = activeProfileRole();
@@ -85,7 +86,7 @@ export default function BibliotecaScreen() {
     if (!docToPay) return;
     const formattedDate = brDateToISO(payDateInput);
     if (!formattedDate) {
-      Alert.alert('Data invalida', 'Informe a data no formato DD/MM/AAAA');
+      setNotice({ title: 'Data invalida', message: 'Informe a data no formato DD/MM/AAAA' });
       return;
     }
     togglePaidStatus(docToPay.id, docToPay.isPaid, formattedDate);
@@ -102,12 +103,12 @@ export default function BibliotecaScreen() {
             scheduleDueDateReminder(newId, clone.issuer, clone.dueDate)
               .catch(e => console.warn('Lembrete do clone', e));
           }
-          Alert.alert('Conta criada', 'A conta do proximo mes foi criada.');
+          setNotice({ title: 'Conta criada', message: 'A conta do proximo mes foi criada.' });
         } else {
-          Alert.alert('Aviso', 'A conta do proximo mes ja existe.');
+          setNotice({ title: 'Aviso', message: 'A conta do proximo mes ja existe.' });
         }
       } catch (e) {
-        Alert.alert('Erro ao criar recorrencia', e instanceof Error ? e.message : String(e));
+        setNotice({ title: 'Erro ao criar recorrencia', message: e instanceof Error ? e.message : String(e) });
       }
     }
 
@@ -397,6 +398,13 @@ export default function BibliotecaScreen() {
             </View>
           </View>
         </Modal>
+        <CustomModal
+          visible={!!notice}
+          title={notice?.title ?? ''}
+          message={notice?.message ?? ''}
+          onConfirm={() => setNotice(null)}
+          onCancel={() => setNotice(null)}
+        />
 </LinearGradient>
   );
 }

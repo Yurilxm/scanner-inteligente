@@ -17,7 +17,7 @@ const mockDb = (require('expo-sqlite') as any).__dbMock;
 
 // Timeout aumentado: na suite completa, o ambiente fica lento e esse
 // arquivo tem um teste que leva ~2.3s isolado mas cruza os 5s do padrao.
-jest.setTimeout(15000);
+jest.setTimeout(30000);
 
 describe('format', () => {
   it('formata centavos', () => {

@@ -41,6 +41,8 @@ export default function DetalhesScreen() {
   const [reclassifyVisible, setReclassifyVisible] = useState(false);
   const [moveVisible, setMoveVisible] = useState(false);
   const [moved, setMoved] = useState<string | null>(null);
+  const [removePhotoVisible, setRemovePhotoVisible] = useState(false);
+  const [duplicateCloneVisible, setDuplicateCloneVisible] = useState(false);
   // Numa gaveta compartilhada, cada um só vê os botões que o papel dele permite
   const role = activeProfileRole();
   // Para onde dá para mover: outras gavetas em que esta pessoa pode adicionar contas
@@ -93,28 +95,20 @@ export default function DetalhesScreen() {
   };
 
   const handleRemovePhoto = () => {
-    Alert.alert(
-      'Remover Foto',
-      'Tem certeza que deseja remover a foto deste documento?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Remover',
-          style: 'destructive',
-          onPress: () => {
-            try {
-              if (doc.imageUri) {
-                const file = new File(doc.imageUri);
-                if (file.exists) file.delete();
-              }
-            } catch {}
-            updateDocument(doc.id, '', doc.ocrText || '', doc, doc.paymentDate, doc.observacao);
-            setDoc({ ...doc, imageUri: '' });
-            setToastMsg('Foto removida.');
-          },
-        },
-      ]
-    );
+    setRemovePhotoVisible(true);
+  };
+
+  const confirmRemovePhoto = () => {
+    try {
+      if (doc.imageUri) {
+        const file = new File(doc.imageUri);
+        if (file.exists) file.delete();
+      }
+    } catch {}
+    updateDocument(doc.id, '', doc.ocrText || '', doc, doc.paymentDate, doc.observacao);
+    setDoc({ ...doc, imageUri: '' });
+    setToastMsg('Foto removida.');
+    setRemovePhotoVisible(false);
   };
 
   const copyPixKey = async (text: string) => {
@@ -212,7 +206,7 @@ export default function DetalhesScreen() {
           }
           setToastMsg('Conta do proximo mes criada!');
         } else {
-          Alert.alert('Aviso', 'A conta do proximo mes ja existe.');
+          setDuplicateCloneVisible(true);
         }
       } catch (e) {
         console.warn('Erro ao criar recorrencia', e);
@@ -241,8 +235,9 @@ export default function DetalhesScreen() {
           <Text style={styles.headerTitle}>DETALHES</Text>
           <Pressable
             onPress={() => {
-              // Documento sem foto (ex: clone de recorrencia): edita via cadastro-manual
-              if (!doc.imageUri) {
+              // Documento sem OCR (ex: clone de recorrencia): edita via cadastro-manual
+              // para nao rodar OCR na foto nova e sobrescrever os dados com "OUTROS"
+              if (!doc.imageUri || !doc.ocrText || doc.documentType === 'CONTA') {
                 router.push({ pathname: '/cadastro-manual', params: { editId: doc.id } });
                 return;
               }
@@ -480,7 +475,25 @@ export default function DetalhesScreen() {
         onCancel={() => setDeleteVisible(false)}
       />
       {toastMsg ? <CustomToast message={toastMsg} type="success" onHide={() => setToastMsg('')} /> : null}
-    </LinearGradient>
+          <CustomModal
+        visible={removePhotoVisible}
+        title="Remover Foto"
+        message="Tem certeza que deseja remover a foto deste documento?"
+        confirmText="Remover"
+        cancelText="Cancelar"
+        isDestructive
+        onConfirm={confirmRemovePhoto}
+        onCancel={() => setRemovePhotoVisible(false)}
+      />
+      <CustomModal
+        visible={duplicateCloneVisible}
+        title="Aviso"
+        message="A conta do proximo mes ja existe."
+        confirmText="OK"
+        onConfirm={() => setDuplicateCloneVisible(false)}
+        onCancel={() => setDuplicateCloneVisible(false)}
+      />
+</LinearGradient>
   );
 }
 
