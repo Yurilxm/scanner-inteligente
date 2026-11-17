@@ -35,6 +35,8 @@ export default function ContaScreen() {
         if (status.kind === 'signed-in' && status.identity === 'ready') {
           import('../sync/engine')
             .then(async engine => {
+              // Puxa o perfil do usuario da nuvem (nome, cor, icone, tema)
+              await engine.loadProfileFromCloud().catch(e => console.warn('Perfil da nuvem', e));
               // Traz as gavetas da nuvem
               await engine.adoptRemoteVaults();
               // Se criou conta antes de logar, envia a gaveta local "Minhas contas" para a nuvem

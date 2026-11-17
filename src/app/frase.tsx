@@ -88,6 +88,7 @@ export default function FraseScreen() {
     setBusy(true);
     try {
       await (await loadAccount()).confirmNewPhrase(userId, phrase);
+      import('../sync/engine').then(e => e.syncAllProfiles()).catch(console.warn);
       setNotice({ title: 'Tudo pronto', message: 'Sua frase foi registrada. Guarde a anotação em lugar seguro, fora do celular. Em Conta e backup você também pode salvar uma cópia na sua conta Google.', done: true });
     } catch (e) {
       setNotice({ title: 'Não foi possível concluir', message: e instanceof Error ? e.message : String(e) });
@@ -105,6 +106,7 @@ export default function FraseScreen() {
       const saved = await account.savePhraseToGoogle(email, phrase);
       if (!saved) return; // recusou na janela do Android: continua aqui para escolher de novo
       await account.confirmNewPhrase(userId, phrase);
+      import('../sync/engine').then(e => e.syncAllProfiles()).catch(console.warn);
       setNotice({
         title: 'Tudo pronto',
         message: 'Sua frase foi salva no Gerenciador de Senhas da sua conta Google ("Frase de recuperação do Control"). Num celular novo, é só recuperar de lá.',
@@ -122,6 +124,7 @@ export default function FraseScreen() {
     setBusy(true);
     try {
       await (await loadAccount()).restoreFromPhrase(userId, restoreText);
+      import('../sync/engine').then(e => e.syncAllProfiles()).catch(console.warn);
       setNotice({ title: 'Celular conectado', message: 'Frase conferida. Seus dados da nuvem podem ser abertos neste celular.', done: true });
     } catch (e) {
       setNotice({ title: 'Frase não aceita', message: e instanceof Error ? e.message : String(e) });

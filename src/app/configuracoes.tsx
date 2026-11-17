@@ -56,6 +56,7 @@ export default function ConfiguracoesScreen() {
     setAppSettingValue('notifications_enabled', notificationsEnabled ? 'true' : 'false');
     setAppSettingValue('cnpj_lookup_enabled', cnpjLookupEnabled ? 'true' : 'false');
     setShowSuccess(true);
+    import('../sync/engine').then(e => e.syncProfileToCloud()).catch(console.warn);
   };
 
   const handleDownloadDevApk = async () => {

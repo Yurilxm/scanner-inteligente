@@ -20,7 +20,8 @@ import { photos } from './photos';
 import './random';
 import { remote } from './remote';
 import { runSync, shouldCommit } from './runSync';
-import { isSupabaseConfigured } from './supabase';
+import { isSupabaseConfigured, supabase } from './supabase';
+import { getPerfil, updatePerfil, appSetting, setAppSettingValue } from '../utils/perfil';
 import { StoredVaultKey, allKeys, forgetVaultKey, readVaultKey, saveVaultKey } from './vaultKey';
 
 export type { SyncReport, VaultMeta } from './model';
@@ -326,4 +327,43 @@ async function runAllProfiles() {
   }
   if (firstError) throw firstError;
   return reports;
+}
+
+
+// ---- Sync do perfil do usuario (nome, cor, icone, tema, notificacoes) ----
+
+export async function syncProfileToCloud() {
+  if (!isSupabaseConfigured()) return;
+  const session = await currentSession();
+  if (!session) return;
+  const profile = getPerfil();
+  const settings = {
+    name: profile.name,
+    color: profile.color,
+    icon: profile.icon,
+    theme: appSetting('theme'),
+    notifications_enabled: appSetting('notifications_enabled'),
+    notification_days_before: appSetting('notification_days_before'),
+    notification_frequency: appSetting('notification_frequency'),
+  };
+  await supabase().auth.updateUser({ data: { profile: settings } });
+}
+
+export async function loadProfileFromCloud() {
+  if (!isSupabaseConfigured()) return;
+  const session = await currentSession();
+  if (!session) return;
+  const settings = session.user.user_metadata?.profile;
+  if (!settings) return;
+  
+  updatePerfil({
+    name: settings.name,
+    color: settings.color,
+    icon: settings.icon,
+  });
+  
+  if (settings.theme) setAppSettingValue('theme', settings.theme);
+  if (settings.notifications_enabled) setAppSettingValue('notifications_enabled', settings.notifications_enabled);
+  if (settings.notification_days_before) setAppSettingValue('notification_days_before', settings.notification_days_before);
+  if (settings.notification_frequency) setAppSettingValue('notification_frequency', settings.notification_frequency);
 }

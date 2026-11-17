@@ -39,6 +39,7 @@ export default function MeuPerfilScreen() {
 
   const save = () => {
     updatePerfil({ name, color, icon });
+    import('../sync/engine').then(e => e.syncProfileToCloud()).catch(console.warn);
     if (photoUri !== perfil.photoUri) {
       if (photoUri) savePerfilPhoto(photoUri).catch(console.warn);
       else removePerfilPhoto().catch(console.warn);
